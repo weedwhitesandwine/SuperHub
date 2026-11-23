@@ -9,7 +9,7 @@ import {PluginFileAPI} from 'sn-plugin-lib';
 
 import {DockItem, HomeConfig} from './config';
 import {readRecent} from './recent';
-import {openFile, openFolder, launchApp} from './open';
+import {createNote, openFile, openFolder, launchApp} from './open';
 import {noteTitle, scanStars} from './scanner';
 import {cacheDir} from './paths';
 import {setRoute} from './route';
@@ -105,6 +105,7 @@ export function pressDock(d: DockItem, onBlock: (b: string) => void) {
   else if (d.kind === 'note') void openFile(d.path, 0);
   else if (d.kind === 'app') launchApp(d.component);
   else if (d.kind === 'today') void openToday(d.root);
+  else if (d.kind === 'create') void createNote(d.folder, d.template, d.recognition);
   else onBlock(d.block);
 }
 

@@ -212,6 +212,38 @@ def sparkle():
     return [part(spark(470, 560, 6.0), 'light', 14), part(spark(770, 250, 2.4), 'mid', 11), part(spark(250, 230, 1.6), 'light', 9)]
 
 
+
+def plus_badge(cx, cy, r=120):
+    """A round badge with a plus, drawn over the corner of a page."""
+    return [part(circ(cx, cy, r), 'white', 16),
+            part(line(cx, cy - r * 0.55, cx, cy + r * 0.55), line=True, w=22),
+            part(line(cx - r * 0.55, cy, cx + r * 0.55, cy), line=True, w=22)]
+
+
+@icon
+def newnote():
+    """New note: a spiral notebook with a plus."""
+    p = [part(rect(250, 170, 470, 650, 26), 'light')]
+    for y in (250, 360, 470, 580, 690):
+        p.append(part(f'<ellipse cx="250" cy="{y}" rx="44" ry="22"/>', line=True, w=12))
+    for y in (300, 390, 480):
+        p.append(part(line(340, y, 620, y), line=True, w=12))
+    return p + plus_badge(690, 770)
+
+
+@icon
+def newdoc():
+    """New document: a page with a folded corner and a plus."""
+    return [part(path('M260 150 L600 150 L740 290 L740 850 Q740 870 720 870 L280 870 Q260 870 260 850 Z'), 'light'),
+            part(path('M600 150 L600 290 L740 290 Z'), 'mid', 9),
+            part(line(340, 400, 640, 400), line=True, w=12), part(line(340, 490, 640, 490), line=True, w=12),
+            part(line(340, 580, 540, 580), line=True, w=12)] + plus_badge(700, 790)
+
+
+@icon
+def plus():
+    return [part(path('M400 170 L624 170 L624 400 L854 400 L854 624 L624 624 L624 854 L400 854 L400 624 L170 624 L170 400 L400 400 Z'), 'mid')]
+
 def frame(w=1720, h=600, b=46, m=26, hatch="hM", ow=14, iw=10):
     """Picture frame for the clock: a hatched band between two pencil outlines."""
     band = (f'M{m} {m + 28} Q{m} {m} {m + 28} {m} L{w - m - 28} {m} Q{w - m} {m} {w - m} {m + 28} L{w - m} {h - m - 28} '

@@ -13,7 +13,7 @@
  * device where openFile is absent or refuses.
  */
 import {NativeModules} from 'react-native';
-import {NativeUIUtils, PluginFileAPI} from 'sn-plugin-lib';
+import {NativeUIUtils, PluginCommAPI, PluginFileAPI} from 'sn-plugin-lib';
 
 import {leavePlugin} from './bubble';
 
@@ -101,4 +101,43 @@ export async function openFileAtPage(path: string, rawPage: number): Promise<voi
 /** Launch an app by "package/activity"; leaves to the OS. */
 export function launchApp(component: string) {
   return go(() => DashboardNative.launchActivity(component), 'launch the app');
+}
+
+const pad = (n: number) => String(n).padStart(2, '0');
+
+/** Make a new notebook in `folder`, named the way the Supernote names them
+ *  (YYYYMMDD_HHMMSS.note), then open it. Without a template, the plain white page. */
+export async function createNote(folder: string, template?: string, recognition?: boolean): Promise<void> {
+  const d = new Date();
+  const name = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  const notePath = `${folder.replace(/\/$/, '')}/${name}.note`;
+  try {
+    let tpl = template;
+    if (!tpl) {
+      const r: any = await PluginCommAPI.getNoteSystemTemplates();
+      const list: any[] = (r?.success ? r.result : r) ?? [];
+      tpl = (list.find(t => /white/i.test(t?.name ?? '')) ?? list[0])?.name;
+    }
+    const res: any = await PluginFileAPI.createNote({notePath, template: tpl ?? 'style_white', mode: recognition ? 1 : 0, isPortrait: true});
+    if (!(res === true || res?.success)) throw new Error(res?.error?.message ?? 'createNote refused');
+  } catch {
+    try {
+      await NativeUIUtils.showRattaDialog("Couldn't make a new note.", '', 'OK', false);
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
+  await openFile(notePath, 1);
+}
+
+/** The Supernote's own page styles, for the New note button's settings. */
+export async function systemTemplates(): Promise<string[]> {
+  try {
+    const r: any = await PluginCommAPI.getNoteSystemTemplates();
+    const list: any[] = (r?.success ? r.result : r) ?? [];
+    return list.map(t => String(t?.name ?? '')).filter(Boolean);
+  } catch {
+    return [];
+  }
 }

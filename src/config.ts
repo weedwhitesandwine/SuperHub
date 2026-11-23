@@ -217,6 +217,10 @@ export type DockItem = (
   | {kind: 'app'; label: string; glyph: string; component: string; appLabel?: string}
   /** A dated planner: today's notebook <root>/<year>/<yyyy-mm-dd>.note on page 2, or <root>/<name> <year>.note when today has none. */
   | {kind: 'today'; label: string; glyph: string; root: string}
+  /** Make a new notebook in `folder` (named like the Supernote does: YYYYMMDD_HHMMSS) and open it.
+   *  `template` is a system template name or a template image path; `recognition` = real-time
+   *  recognition notebook. */
+  | {kind: 'create'; label: string; glyph: string; folder: string; template?: string; recognition?: boolean}
   | {kind: 'block'; label: string; glyph: string; block: 'stars' | 'keywords' | 'favourites' | 'clips' | 'todo' | 'search'}
 ) & {
   /** The picture: a built-in icon name (assets/hub/icons, without .png) or the full path of the
@@ -249,8 +253,14 @@ export const DEFAULT_HOME: HomeConfig = {
   recent: 5,
   hour24: true,
   clockBold: true,
-  // A blank slate: ten empty slots. Each user picks a picture, a name and a target for each in Settings.
-  dock: Array.from({length: 10}, () => ({kind: 'none' as const, label: '', glyph: '+'})),
+  // A few things every Supernote has, then empty slots the user fills in Settings.
+  dock: [
+    {kind: 'create', label: 'New note', glyph: '+', icon: 'newnote', folder: '/storage/emulated/0/Note'},
+    {kind: 'app', label: 'Calendar', glyph: '+', icon: 'calendar', component: 'com.ratta.supernote.calendar/com.ratta.supernote.calendar.MainActivity'},
+    {kind: 'app', label: 'To-do', glyph: '+', icon: 'todo', component: 'com.ratta.supernote.task/com.ratta.supernote.task.TaskActivity'},
+    {kind: 'app', label: 'Digest', glyph: '+', icon: 'digest', component: 'com.ratta.supernote.knowledge/com.ratta.supernote.knowledge.activity.KnowledgeActivity'},
+    ...Array.from({length: 6}, () => ({kind: 'none' as const, label: '', glyph: '+'})),
+  ],
 };
 
 /** The blocks shown under the Home layout's dock and recent strip. */
@@ -474,7 +484,7 @@ function normalizeHome(h: any): HomeConfig {
   // Configs from before the icon grid get the new buttons; their other home settings are kept.
   const src = h.v === HOME_VERSION && Array.isArray(h.dock) ? h.dock : DEFAULT_HOME.dock;
   const dock: DockItem[] = src
-    .filter((d: any) => d && ['none', 'folder', 'note', 'app', 'block', 'today'].includes(d.kind))
+    .filter((d: any) => d && ['none', 'folder', 'note', 'app', 'block', 'today', 'create'].includes(d.kind))
     .map((d: any) => ({...d, label: str(d.label), glyph: ({'♥': '♡', '✂': '◇', '✉': '☰'} as any)[str(d.glyph)] ?? (str(d.glyph) || '●')}))
     .slice(0, MAX_DOCK);
   return {

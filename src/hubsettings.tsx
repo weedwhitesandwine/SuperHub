@@ -24,6 +24,7 @@ import {ICONS} from './icons';
 import {leavePlugin} from './bubble';
 import {setRoute} from './route';
 import {storageRoots, StorageRoot, SD_SYSTEM_DIR} from './storage';
+import {systemTemplates} from './open';
 
 const {DashboardNative} = NativeModules;
 const ROOT = '/storage/emulated/0';
@@ -128,6 +129,8 @@ function describe(d: DockItem): string {
       return "Today's notebook in " + short(d.root);
     case 'block':
       return 'SuperHub page: ' + (PAGES.find(p => p.v === d.block)?.label ?? d.block);
+    case 'create':
+      return 'A new note in ' + short(d.folder);
   }
 }
 
@@ -296,7 +299,7 @@ function Backups({cfg, onLoad, onClose}: {cfg: DashboardConfig; onLoad: (c: Dash
 }
 
 // ---- one home button ---------------------------------------------------------------
-type Picker = {kind: 'folder' | 'file' | 'today' | 'app' | 'favourite-file' | 'favourite-folder' | 'scan-folder'} | {kind: 'backups'} | null;
+type Picker = {kind: 'folder' | 'file' | 'today' | 'create' | 'app' | 'favourite-file' | 'favourite-folder' | 'scan-folder'} | {kind: 'backups'} | null;
 
 function NameField({value, onSave}: {value: string; onSave: (v: string) => void}) {
   const [t, setT] = useState(value);
@@ -357,7 +360,9 @@ function ButtonEditor({i, d, n, setItem, swap, clear, openPicker, userIcons}: {
         <Btn label="App" on={d.kind === 'app'} onPress={() => openPicker({kind: 'app'})} />
         <Btn label="SuperHub page" on={d.kind === 'block' || pages} onPress={() => setPages(p => !p)} />
         <Btn label="Today's notebook" on={d.kind === 'today'} onPress={() => openPicker({kind: 'today'})} />
+        <Btn label="New note" on={d.kind === 'create'} onPress={() => openPicker({kind: 'create'})} />
       </View>
+      {d.kind === 'create' && <NewNoteOptions d={d} setItem={setItem} />}
       {pages && (
         <View style={{marginTop: 4}}>
           {PAGES.map(p => (
@@ -427,6 +432,49 @@ function ButtonEditor({i, d, n, setItem, swap, clear, openPicker, userIcons}: {
       <View style={[st.row, {marginTop: 10}]}>
         <Btn label="Empty this button" onPress={clear} />
       </View>
+    </View>
+  );
+}
+
+/** Options for a New note button: where it goes, its page style, recognition. */
+function NewNoteOptions({d, setItem}: {d: Extract<DockItem, {kind: 'create'}>; setItem: (d: DockItem) => void}) {
+  const [styles, setStyles] = useState<string[] | null>(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (open && styles === null) systemTemplates().then(setStyles);
+  }, [open, styles]);
+  const nice = (n: string) => n.replace(/^style_/, '').replace(/_/g, ' ');
+  return (
+    <View style={{marginTop: 4}}>
+      <Text style={st.p}>
+        Makes a new notebook in {short(d.folder)}, named with today's date and time like the Supernote does, and opens it. Tap “New note” again to choose another folder.
+      </Text>
+      <Text style={st.label}>Page style</Text>
+      <View style={st.row}>
+        <Btn label={d.template ? nice(d.template) : 'Plain white'} on onPress={() => setOpen(o => !o)} />
+        <Btn label={open ? 'Hide styles' : 'Choose a style'} onPress={() => setOpen(o => !o)} />
+      </View>
+      {open && (
+        <View>
+          {styles === null && <Text style={st.p}>loading…</Text>}
+          {styles?.map(n => (
+            <TouchableOpacity
+              key={n}
+              onPress={() => {
+                setItem({...d, template: n});
+                setOpen(false);
+              }}
+              style={{minHeight: 64, justifyContent: 'center', borderBottomWidth: 1, borderColor: '#cccccc'}}>
+              <Text style={{fontSize: T.body, color: INK}}>
+                {n === d.template ? '✓ ' : ''}
+                {nice(n)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+      <Text style={st.label}>Handwriting recognition while you write</Text>
+      <Choice options={[{v: 'off', label: 'Off'}, {v: 'on', label: 'On'}]} value={d.recognition ? 'on' : 'off'} onChange={v => setItem({...d, recognition: v === 'on'})} />
     </View>
   );
 }
@@ -520,6 +568,8 @@ export function HubSettings(): React.JSX.Element {
         onPick={p => {
           if (picker.kind === 'folder') setItem(sel, {...base, kind: 'folder', path: p, label: cur.label || baseName(p)});
           else if (picker.kind === 'file') setItem(sel, {...base, kind: 'note', path: p, label: cur.label || baseName(p)});
+          else if (picker.kind === 'create')
+            setItem(sel, {...base, kind: 'create', folder: p, template: cur.kind === 'create' ? cur.template : undefined, recognition: cur.kind === 'create' ? cur.recognition : undefined, label: cur.label || 'New note'});
           else if (picker.kind === 'today') setItem(sel, {...base, kind: 'today', root: p, label: cur.label || baseName(p)});
           else if (picker.kind === 'favourite-file' || picker.kind === 'favourite-folder') editZone('favourites', z => void (!(z.paths ??= []).includes(p) && z.paths.push(p)));
           else if (picker.kind === 'scan-folder') setScanFolders(f => void (!f.includes(p) && f.push(p)));
