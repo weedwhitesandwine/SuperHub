@@ -68,11 +68,11 @@ export async function ensureFilePermissions(): Promise<boolean> {
   try {
     const read = await ensure(
       PERM_FILE_READ,
-      'SuperDashboard reads your notes and folders to build the dashboard (stars, keywords, recent, shortcuts).',
+      'SuperHub reads your notes and folders to build the dashboard (stars, keywords, recent, shortcuts).',
     );
     const write = await ensure(
       PERM_FILE_WRITE,
-      'SuperDashboard needs write access to remove a star from a note when you tap delete.',
+      'SuperHub needs write access to remove a star from a note when you tap delete.',
     );
     granted = read && write;
     plog(`ensureFilePermissions read=${read} write=${write} → ${granted}`);

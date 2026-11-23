@@ -11,8 +11,9 @@ import {openFile, openFileAtPage, openFolder, launchApp} from './open';
 import {deleteStarByIndex, LineImg, unwrap} from './starText';
 import {NativeUIUtils, PluginCommAPI} from 'sn-plugin-lib';
 import {readNoteToc, cachedToc, TocEntry} from './notetoc';
-import {scanStars, scanKeywords, flushCurrentNote, noteTitle, parentFolder, recentModifiedFiles, KeywordHit} from './scanner';
+import {basename, scanStars, scanKeywords, flushCurrentNote, noteTitle, parentFolder, recentModifiedFiles, KeywordHit} from './scanner';
 import {readRecent} from './recent';
+import {openPath} from './home';
 import {loadIndex, loadKeywords, loadTitles, loadStarredFiles, loadStats, buildIndex, runSearch, warmSearch, IndexData, IndexEntry, KwEntry, TitleHit} from './searchIndex';
 import {plog, timed} from './perf';
 import {ClockFace} from './clock';
@@ -114,6 +115,8 @@ export function ZoneView({
         return <TocZone zone={zone} theme={theme} ts={ts} nonce={nonce} />;
       case 'spacer':
         return <View style={{height: blockHeightPx(zone)}} />;
+      case 'favourites':
+        return <FavouritesZone zone={zone} theme={theme} ts={ts} nonce={nonce} />;
     }
   })();
   return (
@@ -1043,6 +1046,24 @@ function ClipLabelEditor({clip, font, onSave, onClose}: {clip: Clip; font?: stri
 }
 
 // ---- Recent (reads the device's own recently-opened list) -----------------
+// ---- Favourites: SuperHub's own list of notes, documents and folders ---------
+function FavouritesZone({zone, theme, ts}: {zone: Extract<Zone, {type: 'favourites'}>; theme: Theme; ts: TScale; nonce?: number}) {
+  const paths = zone.paths ?? [];
+  const isDir = (p: string) => !/\.[a-z0-9]{2,5}$/i.test(p);
+  return (
+    <ZoneFrame theme={theme} hs={ts.hs} font={ts.font} title={zoneTitle(zone.title, 'Favourites')}>
+      {paths.length === 0 && <Text style={ui.empty}>No favourites yet: add them in ⚙ Configuration → Home screen → Favourites.</Text>}
+      {paths.map(p => (
+        <TouchableOpacity key={p} onPress={() => openPath(p)}>
+          <Text style={[ui.listItem, ts.item]} numberOfLines={1}>
+            {isDir(p) ? '▤ ' + basename(p) : noteTitle(p)}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </ZoneFrame>
+  );
+}
+
 function RecentZone({zone, theme, ts, nonce}: {zone: Extract<Zone, {type: 'recent'}>; theme: Theme; ts: TScale; nonce?: number}) {
   const [paths, setPaths] = useState<string[] | null>(null);
   useEffect(() => {
@@ -1219,7 +1240,9 @@ function ZoneFrame({
   return (
     <View style={r === undefined ? sp.frame : [sp.frame, {borderRadius: r}]}>
       {hasHead && (
-        <HeaderTag style={sp.header} {...(collapsible ? {onPress: chrome.onToggle, activeOpacity: 0.6} : {})}>
+        // Fixed row height + centred: a heading with a timestamp and ↻ (Stars,
+        // Keywords) must sit exactly level with a plain one beside it (Favourites).
+        <HeaderTag style={[sp.header, {alignItems: 'center', minHeight: Math.round(20 * hs)}]} {...(collapsible ? {onPress: chrome.onToggle, activeOpacity: 0.6} : {})}>
           <Text style={sp.label} numberOfLines={1}>
             {shownTitle}
           </Text>
@@ -1228,7 +1251,7 @@ function ZoneFrame({
             {onRefresh ? (
               // Its own touch target so tapping ↻ refreshes without toggling collapse.
               <TouchableOpacity onPress={onRefresh} disabled={refreshing} hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
-                <Text style={{fontSize: 15 * hs, color: refreshing ? '#999999' : sp.line, marginLeft: 10}}>{refreshing ? '⏳' : '↻'}</Text>
+                <Text style={{fontSize: 15 * hs, lineHeight: Math.round(18 * hs), color: refreshing ? '#999999' : sp.line, marginLeft: 10}}>{refreshing ? '⏳' : '↻'}</Text>
               </TouchableOpacity>
             ) : null}
             {collapsible ? <Text style={{fontSize: 13 * hs, color: sp.line, marginLeft: 8}}>{collapsed ? '▸' : '▾'}</Text> : null}
@@ -1374,7 +1397,7 @@ function StarsZone({zone, scan, theme, ts, sib, nonce}: {zone: Extract<Zone, {ty
       );
     return notes.map((n, i) => (
           <View key={i}>
-            <NoteFoldHead fold={fold} file={n.file} ts={ts} label={`★ ${noteTitle(n.file)}`} count={n.pages.reduce((s, p) => s + p.count, 0)} />
+            <NoteFoldHead fold={fold} file={n.file} ts={ts} label={`★ ${noteTitle(n.file)}`} count={n.pages.reduce((s, p) => s + p.count, 0)} page={n.pages[0]?.page ?? 0} />
             {!fold.isFolded(n.file) && n.pages.map((p, j) => {
               // one row per star (top→bottom), so delete can target a single star
               const n2 = Math.max(p.lines?.length ?? 0, p.texts?.length ?? 0, p.count);
@@ -1494,16 +1517,22 @@ function renderKeywords(
 
 /** A notebook's group header in Stars / Keywords: tap to fold or unfold its
  *  stars or keywords. A folded group shows how many it hides. */
-function NoteFoldHead({fold, file, ts, label, count, style}: {fold: NoteFold; file: string; ts: TScale; label: string; count: number; style?: any}) {
+function NoteFoldHead({fold, file, ts, label, count, style, page = 0}: {fold: NoteFold; file: string; ts: TScale; label: string; count: number; style?: any; page?: number}) {
   const folded = fold.isFolded(file);
+  // The name opens the note (at `page`, 1-based; 0 = where it was left); only
+  // the arrow folds/unfolds the list under it.
   return (
-    <TouchableOpacity onPress={() => fold.toggle(file)} activeOpacity={0.6} style={{flexDirection: 'row', alignItems: 'center'}}>
-      <Text style={[style ?? ui.noteHead, ts.head, {flex: 1}]} numberOfLines={1}>
-        {label}
-        {folded ? `  (${count})` : ''}
-      </Text>
-      <Text style={[ui.noteHead, ts.head, {marginLeft: 6}]}>{folded ? '▸' : '▾'}</Text>
-    </TouchableOpacity>
+    <View style={{flexDirection: 'row', alignItems: 'center'}}>
+      <TouchableOpacity onPress={() => openFile(file, page)} activeOpacity={0.6} style={{flex: 1}}>
+        <Text style={[style ?? ui.noteHead, ts.head]} numberOfLines={1}>
+          {label}
+          {folded ? `  (${count})` : ''}
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => fold.toggle(file)} activeOpacity={0.6} hitSlop={{top: 10, bottom: 10, left: 16, right: 10}}>
+        <Text style={[ui.noteHead, ts.head, {marginLeft: 6, paddingHorizontal: 6}]}>{folded ? '▸' : '▾'}</Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 

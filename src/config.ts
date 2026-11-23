@@ -93,6 +93,7 @@ export const ZONE_ICONS: Record<string, string> = {
   todo: '☑',
   toc: '≣',
   spacer: '▢',
+  favourites: '♡',
 };
 
 /** Human label per block type: the SINGLE source for the block's default name,
@@ -112,6 +113,7 @@ export const ZONE_LABELS: Record<string, string> = {
   todo: 'To-do',
   toc: 'Contents',
   spacer: 'Empty',
+  favourites: 'Favourites',
 };
 
 /** Clip ordering in a Clips block. */
@@ -154,6 +156,7 @@ export type Zone = ZoneCommon &
     | {type: 'todo'; title?: string; folders?: string[]; labels?: string[]; display?: 'grid' | 'list'; sort?: ClipSort; size?: 'S' | 'M' | 'L'; textMode?: ClipTextMode}
     | {type: 'toc'; title?: string; indentByStyle?: boolean; titleLevels?: number[]}
     | {type: 'spacer'; title?: string}
+    | {type: 'favourites'; title?: string; /** notes, documents and folders, in the order shown */ paths: string[]}
   );
 
 export interface ScanSettings {
@@ -201,7 +204,61 @@ export function blockHeightPx(z: ZoneCommon): number {
 /** Dashboard text size (also enlarges tap targets). */
 export type TextScale = 'S' | 'M' | 'L' | 'XL';
 
+/** One round button in the Home layout's dock. 'block' opens one of the page's
+ *  own blocks (the first of that type) on its own, full screen. */
+export type DockItem = (
+  /** An empty slot: shown as a faint "set up" placeholder until it is given a target. */
+  | {kind: 'none'; label: string; glyph: string}
+  | {kind: 'folder'; label: string; glyph: string; path: string}
+  | {kind: 'note'; label: string; glyph: string; path: string}
+  | {kind: 'app'; label: string; glyph: string; component: string}
+  /** A dated planner: today's notebook <root>/<year>/<yyyy-mm-dd>.note on page 2, or <root>/<name> <year>.note when today has none. */
+  | {kind: 'today'; label: string; glyph: string; root: string}
+  | {kind: 'block'; label: string; glyph: string; block: 'stars' | 'keywords' | 'favourites' | 'clips' | 'todo' | 'search'}
+) & {
+  /** A picture icon from assets/hub/icons (name without .png); shown instead of the glyph. */
+  icon?: string;
+};
+
+/** The Home layout: big clock, a dock of round buttons, recent notes as page
+ *  previews, then the normal blocks (Stars, Favourites, Keywords) underneath. */
+export interface HomeConfig {
+  /** 2 = the icon grid (two rows of five); older configs get the new default buttons. */
+  v?: number;
+  on: boolean;
+  dock: DockItem[];
+  /** How many recent page previews to show (0 hides the strip). */
+  recent: number;
+  hour24: boolean;
+  /** Clock digits in bold instead of the thin face. */
+  clockBold?: boolean;
+}
+
+// Plain text symbols only: emoji-style ones (♥ ✂ ✉) render as filled grey blobs on the Manta.
+export const DOCK_GLYPHS = ['✎', '▤', '▦', '☑', '★', '☆', '♡', '#', '◆', '◇', '●', '○', '▲', '✦', '☰', '⌂'];
+
+export const HOME_VERSION = 2;
+export const MAX_DOCK = 10;
+export const DEFAULT_HOME: HomeConfig = {
+  v: HOME_VERSION,
+  on: true,
+  recent: 5,
+  hour24: true,
+  clockBold: true,
+  // A blank slate: ten empty slots. Each user picks a picture, a name and a target for each in Settings.
+  dock: Array.from({length: 10}, () => ({kind: 'none' as const, label: '', glyph: '+'})),
+};
+
+/** The blocks shown under the Home layout's dock and recent strip. */
+export const HOME_ZONES: Zone[] = [
+  {type: 'stars', title: 'Stars', folders: ['/storage/emulated/0/Note'], col: 0},
+  {type: 'favourites', title: 'Favourites', paths: [], col: 1},
+  {type: 'keywords', title: 'Keywords', folders: ['/storage/emulated/0/Note'], sort: 'keyword', display: 'inline', span: 'bottom'},
+];
+
 export interface DashboardConfig {
+  /** Home layout (clock + dock + recent previews above the blocks). */
+  home: HomeConfig;
   bubble: {mode: BubbleMode};
   scan: ScanSettings;
   theme: Theme;
@@ -232,13 +289,18 @@ export interface DashboardConfig {
 }
 
 export const DEFAULT_CONFIG: DashboardConfig = {
+  home: DEFAULT_HOME,
   bubble: {mode: 'icon'},
   scan: {autoRefreshHours: 24, autoOnOpen: false},
-  theme: 'boxed',
-  layout: {columns: 1, vmode: 'masonry'},
-  textScale: 'L',
+  theme: 'underline',
+  layout: {columns: 2, vmode: 'masonry'},
+  textScale: 'M',
   headingScale: 'S',
-  zones: [
+  zones: HOME_ZONES,
+};
+
+/** The plugin's original block-only starting page (kept for reference). */
+export const CLASSIC_ZONES: Zone[] = [
     {
       type: 'shortcuts',
       title: 'Shortcuts',
@@ -260,8 +322,7 @@ export const DEFAULT_CONFIG: DashboardConfig = {
         {label: 'Calendar', component: 'com.ratta.supernote.calendar/com.ratta.supernote.calendar.MainActivity'},
       ],
     },
-  ],
-};
+];
 
 /** Load config from disk, falling back to DEFAULT_CONFIG if missing/invalid.
  *  Uses the native reader (not fetch, which caches file:// → stale config after a Save). */
@@ -295,7 +356,17 @@ export async function loadConfig(): Promise<DashboardConfig> {
   let cfg = DEFAULT_CONFIG;
   if (text) {
     try {
-      cfg = normalize(JSON.parse(text));
+      const raw = JSON.parse(text);
+      cfg = normalize(raw);
+      // First open after the Home layout arrived: keep the old page as a profile
+      // (Save/load config can bring it back), then switch to Home.
+      if (!raw?.home) {
+        try {
+          await saveProfile('Before Home layout', cfg);
+        } catch {}
+        cfg = {...cfg, home: DEFAULT_HOME, theme: 'underline', layout: {columns: 2, vmode: 'masonry'}, textScale: 'M', zones: HOME_ZONES};
+        await saveConfig(cfg);
+      }
     } catch {}
   }
   applyLogSetting(cfg);
@@ -338,6 +409,7 @@ function normalize(raw: any): DashboardConfig {
   const hasZones = Array.isArray(raw?.zones);
   const rawZones: any[] = hasZones ? raw.zones.filter(isZone) : (DEFAULT_CONFIG.zones as any[]);
   const zones: Zone[] = rawZones.map((z: any, i: number) => {
+    if (z.type === 'shortcuts' && z.title === 'Favourites' && !(Array.isArray(z.items) && z.items.length)) z = {type: 'favourites', title: z.title, paths: [], col: z.col, span: z.span};
     const nz: any = normalizeZone(z);
     const rawCol = typeof z.col === 'number' ? z.col : legacyGrid ? i % 2 : 0;
     nz.col = Math.max(0, Math.min(layout.columns - 1, rawCol));
@@ -381,11 +453,37 @@ function normalize(raw: any): DashboardConfig {
   const corners: number | undefined =
     typeof raw?.corners === 'number' && isFinite(raw.corners) ? Math.max(0, Math.min(MAX_CORNER, Math.round(raw.corners))) : undefined;
 
-  return {bubble: {mode}, scan, theme, layout, textScale, headingScale, font, showIcons, corners, clipFrame, clipText, clipFontSize, clipFontPath, clipBacklink, debugLog, zones};
+  return {home: normalizeHome(raw?.home), bubble: {mode}, scan, theme, layout, textScale, headingScale, font, showIcons, corners, clipFrame, clipText, clipFontSize, clipFontPath, clipBacklink, debugLog, zones};
+}
+
+function normalizeHome(h: any): HomeConfig {
+  if (!h || typeof h !== 'object') return DEFAULT_HOME;
+  const str = (v: any) => (typeof v === 'string' ? v : '');
+  // Configs from before the icon grid get the new buttons; their other home settings are kept.
+  const src = h.v === HOME_VERSION && Array.isArray(h.dock) ? h.dock : DEFAULT_HOME.dock;
+  const dock: DockItem[] = src
+    .filter((d: any) => d && ['none', 'folder', 'note', 'app', 'block', 'today'].includes(d.kind))
+    .map((d: any) => ({...d, label: str(d.label), glyph: ({'♥': '♡', '✂': '◇', '✉': '☰'} as any)[str(d.glyph)] ?? (str(d.glyph) || '●')}))
+    .slice(0, MAX_DOCK);
+  return {
+    v: HOME_VERSION,
+    on: h.on !== false,
+    dock,
+    recent: typeof h.recent === 'number' ? Math.max(0, Math.min(8, Math.round(h.recent))) : DEFAULT_HOME.recent,
+    hour24: h.hour24 !== false,
+    clockBold: h.clockBold === true,
+  };
 }
 
 function isZone(z: any): z is Zone {
-  return z && ['shortcuts', 'stars', 'keywords', 'apps', 'recent', 'clock', 'search', 'status', 'nav', 'clips', 'todo', 'toc', 'spacer'].includes(z.type);
+  return z && ['shortcuts', 'stars', 'keywords', 'apps', 'recent', 'clock', 'search', 'status', 'nav', 'clips', 'todo', 'toc', 'spacer', 'favourites'].includes(z.type);
+}
+
+/** A default block for a home button whose block isn't on the page yet. */
+export function newZone(block: string): Zone | null {
+  const titles: Record<string, string> = {keywords: 'Keywords', search: 'Search', clips: 'Note Clips', todo: 'To-do', stars: 'Stars', favourites: 'Favourites'};
+  if (!titles[block]) return null;
+  return normalizeZone({type: block, title: titles[block], folders: [], col: 0, ...(block === 'keywords' ? {folders: ['/storage/emulated/0/Note'], sort: 'keyword', display: 'inline'} : {})});
 }
 
 /** Guarantee a zone's required arrays/fields exist so a hand-edited config
@@ -445,6 +543,8 @@ function normalizeZone(z: any): Zone {
           : [1, 2, 3, 4];
       return {...z, indentByStyle: !!z.indentByStyle, titleLevels: tl};
     }
+    case 'favourites':
+      return {...z, paths: arr(z.paths).filter((x: any) => typeof x === 'string')};
     case 'spacer':
       return {...z}; // empty block; height comes from `h` (set in normalize)
     default:

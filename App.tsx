@@ -4,16 +4,17 @@
  * @format
  */
 import React, {useEffect, useMemo, useRef, useState} from 'react';
-import {DeviceEventEmitter, NativeModules, ScrollView, Text, View} from 'react-native';
+import {DeviceEventEmitter, Image, NativeModules, ScrollView, Text, TouchableOpacity, View} from 'react-native';
 
 import {getRoute, setRoute, Route} from './src/route';
-import {DashboardConfig, loadConfig, saveConfig, blockHeightPx} from './src/config';
+import {DashboardConfig, loadConfig, saveConfig, blockHeightPx, newZone} from './src/config';
 import {leavePlugin} from './src/bubble';
 import {tscale, ZoneView} from './src/zones';
-import {setCornerRadius, ThemedButton, ui} from './src/ui';
+import {setCornerRadius, ui} from './src/ui';
 import {SettingsScreen} from './src/settings';
 import {autoRefreshTitles} from './src/notetoc';
 import {timed} from './src/perf';
+import {blockMatches, Dock, FavouritesPage, HomeClock, RecentStrip, StarredPages} from './src/home';
 
 const SCALE: Record<string, number> = {S: 1, M: 1.18, L: 1.4, XL: 1.7};
 
@@ -54,11 +55,34 @@ function FixedBlock({height, children}: {height: number; children: React.ReactNo
   );
 }
 
+/** A round, icon-only header button: all the same size so the top row is uniform. */
+const HEADER_ICONS: Record<string, any> = {
+  gear: require('./assets/hub/gear.png'),
+  refresh: require('./assets/hub/refresh.png'),
+  fold: require('./assets/hub/fold.png'),
+  back: require('./assets/hub/back.png'),
+};
+
+function HeaderIcon({glyph, onPress, gap}: {glyph: keyof typeof HEADER_ICONS; onPress: () => void; gap?: boolean}) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}
+      style={{width: 54, height: 54, borderRadius: 27, borderWidth: 2, borderColor: '#000000', alignItems: 'center', justifyContent: 'center', marginLeft: gap ? 14 : 0, backgroundColor: '#ffffff'}}>
+      <Image source={HEADER_ICONS[glyph]} style={{width: 30, height: 30}} resizeMode="contain" fadeDuration={0} />
+    </TouchableOpacity>
+  );
+}
+
 function DashboardScreen(): React.JSX.Element {
   const [cfg, setCfg] = useState<DashboardConfig | null>(null);
   // `nonce` bumps every time the dashboard is (re)entered → live data (Recent)
   // and config re-read even though the view may be kept mounted across opens.
   const [nonce, setNonce] = useState(0);
+  // Home layout: a dock button can open one block on its own (null = the home page).
+  const [focus, setFocus] = useState<number | null>(null);
+  // ...or one of the two full-screen pages: starred pages / Supernote favourites.
+  const [page, setPage] = useState<'stars' | 'favourites' | null>(null);
   // Reload config + bump `nonce` on mount and every dashboard (re)entry, so
   // zones re-read their data against the fresh config in one render even though
   // the view is kept mounted across opens. The bubble is NO LONGER hidden here:
@@ -80,6 +104,8 @@ function DashboardScreen(): React.JSX.Element {
         }
         if (!alive) return;
         setCfg(c);
+        setFocus(null);
+        setPage(null);
         setNonce(n => n + 1);
         // Keep the shared title cache fresh for Search even when no Contents block
         // is shown: re-read notes modified since the last watermark. Deferred so it
@@ -140,7 +166,7 @@ function DashboardScreen(): React.JSX.Element {
     const el = (
       <ZoneView
         zone={z}
-        scan={cfg!.scan}
+        scan={cfg!.home?.on ? {...cfg!.scan, autoOnOpen: true} : cfg!.scan}
         theme={cfg!.theme}
         ts={ts}
         nonce={nonce}
@@ -178,26 +204,67 @@ function DashboardScreen(): React.JSX.Element {
   const hbLine = theme === 'gridgray' ? '#888888' : '#000000';
   const ff = fontFamily ? {fontFamily} : null;
 
+  const home = cfg?.home?.on ? cfg.home : null;
+  const openBlock = (block: string) => {
+    if (!cfg) return;
+    if (block === 'stars' || block === 'favourites') return setPage(block);
+    const i = cfg.zones.findIndex(z => blockMatches(block, z));
+    if (i >= 0) return setFocus(i);
+    // No block of that kind yet (e.g. Search, Note Clips, To-do): add a default one, kept hidden on the home screen.
+    const z = newZone(block);
+    if (!z) return;
+    const next = {...cfg, zones: [...cfg.zones, z]};
+    setCfg(next);
+    saveConfig(next);
+    setFocus(next.zones.length - 1);
+  };
+  const focused = cfg && focus !== null ? cfg.zones[focus] : undefined;
+  const starFolders = (cfg?.zones.find(z => z.type === 'stars') as any)?.folders ?? [];
+
   return (
     <View style={ui.container}>
       <View style={ui.header}>
         {/* Configuration pinned far left; the name centred; refresh + fold on the right. */}
         <View style={ui.headerBtns}>
-          <ThemedButton theme={theme} s={ts.s} font={fontFamily} label="⚙ Configuration" onPress={() => setRoute('config')} />
+          {focused || page ? (
+            <HeaderIcon glyph="back" onPress={() => {setFocus(null); setPage(null);}} />
+          ) : (
+            <HeaderIcon glyph="gear" onPress={() => setRoute('config')} />
+          )}
         </View>
         <Text style={[ui.title, {fontSize: 22 * ts.hs, color: hbLine, flex: 1, textAlign: 'center'}, ff]} numberOfLines={1}>
-          SuperDashboard
+          {home ? '' : 'SuperHub'}
         </Text>
         <View style={ui.headerBtns}>
-          <ThemedButton theme={theme} s={ts.s} font={fontFamily} label="↻ Refresh all" onPress={() => DeviceEventEmitter.emit('dashboard_refresh_all')} />
-          <ThemedButton theme={theme} s={ts.s} font={fontFamily} label="⊖ Fold" onPress={() => leavePlugin()} />
+          <HeaderIcon glyph="refresh" onPress={() => DeviceEventEmitter.emit('dashboard_refresh_all')} />
+          <HeaderIcon glyph="fold" gap onPress={() => leavePlugin()} />
         </View>
       </View>
       {!cfg && <Text style={ui.hint}>loading…</Text>}
-      {cfg && cfg.zones.length === 0 && (
+      {cfg && !home && cfg.zones.length === 0 && (
         <Text style={ui.hint}>No zone. Configure the dashboard via ⚙ Settings.</Text>
       )}
-      {cfg && (
+      {cfg && page === 'stars' && <StarredPages folders={starFolders} nonce={nonce} font={fontFamily} s={ts.s} />}
+      {cfg && page === 'favourites' && <FavouritesPage paths={(cfg.zones.find(z => z.type === 'favourites') as any)?.paths ?? []} nonce={nonce} font={fontFamily} s={ts.s} />}
+      {cfg && !page && focused && (
+        <ScrollView style={{flex: 1}}>
+          <View style={{paddingHorizontal: 4}}>{renderZone(focused, focus!, 1)}</View>
+        </ScrollView>
+      )}
+      {cfg && !page && !focused && (
+        home ? (
+          // Home screen: framed clock on top, the icon grid in the middle, recent pages at the bottom.
+          // The blocks themselves stay hidden; buttons open them full screen.
+          <ScrollView style={{flex: 1}} contentContainerStyle={{flexGrow: 1}}>
+            <View style={{flex: 1, justifyContent: 'space-between', paddingHorizontal: 6}}>
+              <HomeClock hour24={home.hour24} nonce={nonce} font={fontFamily} bold={home.clockBold} />
+              <View style={{flex: 1, justifyContent: 'center', paddingVertical: 20}}>
+                <Dock items={home.dock} onBlock={openBlock} font={fontFamily} />
+              </View>
+              <RecentStrip count={home.recent} nonce={nonce} font={fontFamily} />
+            </View>
+          </ScrollView>
+        ) : (
         <ScrollView style={{flex: 1}}>
           {band('top')}
           {/* Each column is its own independent vertical stack (heights differ freely). */}
@@ -213,6 +280,7 @@ function DashboardScreen(): React.JSX.Element {
           </View>
           {band('bottom')}
         </ScrollView>
+        )
       )}
     </View>
   );

@@ -19,6 +19,11 @@ import {
   ClockStyle,
   DashboardConfig,
   DEFAULT_CONFIG,
+  DEFAULT_HOME,
+  MAX_DOCK,
+  DockItem,
+  DOCK_GLYPHS,
+  HOME_ZONES,
   KeywordDisplay,
   loadConfig,
   NoteSort,
@@ -48,6 +53,8 @@ import {indexTitles, IndexProgress, titleIndexStats} from './notetoc';
 import {formatScanTime} from './scancache';
 import {isSdPath, SD_SYSTEM_DIR, sdRoots, StorageRoot, storageRoots} from './storage';
 import {APP_BLOCK, CURATED_APPS} from './apps';
+import {ICONS} from './icons';
+import {DockPicture} from './home';
 import {Btn, fileGlyph as fileKindGlyph, ui} from './ui';
 import {ClockFace} from './clock';
 import {allClipLabels} from './clips';
@@ -115,7 +122,7 @@ export function SettingsScreen(): React.JSX.Element {
       </Text>
 
       <ScrollView style={{flex: 1}}>
-        {step === 1 && <StepLook cfg={cfg} update={update} />}
+        {step === 1 && <StepLook cfg={cfg} update={update} openModal={setModal} />}
         {step === 2 && <StepSections cfg={cfg} update={update} openModal={setModal} />}
       </ScrollView>
 
@@ -187,7 +194,247 @@ function Group({title, defaultOpen = false, children}: {title: string; defaultOp
   );
 }
 
-function StepLook({cfg, update}: {cfg: DashboardConfig; update: UP}) {
+// ===== Home layout (clock + dock + recent previews) =========================
+const BLOCK_TARGETS: {v: string; label: string}[] = [
+  {v: 'favourites', label: 'Favourites'},
+  {v: 'stars', label: 'Starred pages'},
+  {v: 'keywords', label: 'Keywords'},
+  {v: 'search', label: 'Search'},
+  {v: 'clips', label: 'Note Clips'},
+  {v: 'todo', label: 'To-do block'},
+];
+
+/** Every picture icon, in the order the picker shows them. */
+const ICON_NAMES = Object.keys(ICONS).sort();
+
+function dockTarget(d: DockItem): string {
+  if (d.kind === 'none') return 'empty: choose a picture, a name and what it opens';
+  if (d.kind === 'folder') return 'opens folder ' + d.path.replace('/storage/emulated/0', '');
+  if (d.kind === 'note') return 'opens ' + d.path.substring(d.path.lastIndexOf('/') + 1);
+  if (d.kind === 'app') return 'opens app ' + d.component.split('/')[0];
+  if (d.kind === 'today') return "opens today's dated notebook in " + d.root.replace('/storage/emulated/0', '');
+  if (d.block === 'search') return 'shows the Search block on its own';
+  if (d.block === 'stars') return 'opens Starred pages (every page with a drawn star)';
+  if (d.block === 'favourites') return 'opens your Favourites page (set below)';
+  return 'shows the ' + (BLOCK_TARGETS.find(b => b.v === d.block)?.label ?? d.block) + ' block on its own';
+}
+
+function DockSlot({i, d, n, update, openModal}: {i: number; d: DockItem; n: number; update: UP; openModal: (m: Modal) => void}) {
+  const [glyphs, setGlyphs] = useState(false); // the icon picker is open
+  const [blocks, setBlocks] = useState(false);
+  const set = (fn: (x: DockItem[]) => void) => update(c => fn(c.home.dock));
+  const replace = (nd: DockItem) => set(x => void (x[i] = nd));
+  const base = {label: d.label, glyph: d.glyph, icon: d.icon};
+  const nameOf = (p: string) => p.substring(p.lastIndexOf('/') + 1).replace(/\.(note|pdf|epub)$/i, '');
+  return (
+    <View style={{borderWidth: 1, borderColor: '#000000', borderRadius: 8, padding: 10, marginBottom: 10}}>
+      <View style={[ui.row, {alignItems: 'center'}]}>
+        <TouchableOpacity onPress={() => setGlyphs(g => !g)} style={{marginRight: 12}}>
+          <DockPicture d={d} size={72} />
+        </TouchableOpacity>
+        <View style={{flex: 1}}>
+          <Text style={[ui.itemText, {fontSize: 16, fontWeight: '700'}]}>
+            {i + 1}. {d.label || '(no label)'}
+          </Text>
+          <Text style={ui.subLabel}>{dockTarget(d)}</Text>
+        </View>
+        <Mini label="↑" onPress={() => set(x => void moveItem(x, i, -1))} />
+        <Mini label="↓" onPress={() => set(x => void moveItem(x, i, 1))} />
+        {n > 1 && <Mini label="✕" onPress={() => set(x => void x.splice(i, 1))} />}
+      </View>
+      <Text style={ui.subLabel}>Position on the home screen (1–5 top row, 6–10 bottom row; tap the picture to change it):</Text>
+      <View style={ui.row}>
+        {Array.from({length: n}).map((_, k) => (
+          <TouchableOpacity
+            key={k}
+            onPress={() => set(x => void ([x[i], x[k]] = [x[k], x[i]]))}
+            style={[ui.choice, {paddingVertical: 4, paddingHorizontal: 12}, k === i && ui.choiceOn]}>
+            <Text style={[{fontSize: 18}, k === i && ui.choiceTextOn]}>{k + 1}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      {glyphs && (
+        <View style={{flexDirection: 'row', flexWrap: 'wrap', marginTop: 8}}>
+          {ICON_NAMES.map(name => (
+            <TouchableOpacity
+              key={name}
+              onPress={() => {
+                set(x => void (x[i].icon = name));
+                setGlyphs(false);
+              }}
+              style={{width: '16.66%', alignItems: 'center', padding: 4, borderWidth: name === d.icon ? 2 : 0, borderColor: '#000000', borderRadius: 8}}>
+              <Image source={ICONS[name]} style={{width: 70, height: 70}} resizeMode="contain" fadeDuration={0} />
+              <Text style={{fontSize: 12, color: '#000000'}} numberOfLines={1}>
+                {name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+      <EditableTitle value={d.label} onSave={t => set(x => void (x[i].label = t))} />
+      <Text style={ui.subLabel}>What the button opens:</Text>
+      <View style={ui.row}>
+        <Mini
+          label="📁 Folder…"
+          onPress={() =>
+            openModal({
+              kind: 'shortcuts',
+              foldersOnly: true,
+              onDone: p => p[0] && replace({...base, kind: 'folder', path: p[0].path, label: d.label || nameOf(p[0].path)}),
+            })
+          }
+        />
+        <Mini
+          label="📄 Note…"
+          onPress={() =>
+            openModal({
+              kind: 'shortcuts',
+              onDone: p => {
+                const f = p.find(x => x.kind === 'file') ?? p[0];
+                if (f) replace(f.kind === 'file' ? {...base, kind: 'note', path: f.path, label: d.label || nameOf(f.path)} : {...base, kind: 'folder', path: f.path});
+              },
+            })
+          }
+        />
+        <Mini label="▦ App…" onPress={() => openModal({kind: 'apps', onDone: as => as[0] && replace({...base, kind: 'app', component: as[0].component, label: as[0].label})})} />
+        <Mini label="★ SuperHub page…" onPress={() => setBlocks(b => !b)} />
+        <Mini
+          label="📅 Dated notebooks…"
+          onPress={() =>
+            openModal({
+              kind: 'shortcuts',
+              foldersOnly: true,
+              onDone: p => p[0] && replace({...base, kind: 'today', root: p[0].path, label: d.label || nameOf(p[0].path)}),
+            })
+          }
+        />
+      </View>
+      {blocks && (
+        <Seg
+          options={BLOCK_TARGETS}
+          value={d.kind === 'block' ? d.block : ''}
+          onChange={v => {
+            replace({...base, kind: 'block', block: v as any, label: BLOCK_TARGETS.find(b => b.v === v)?.label ?? d.label});
+            setBlocks(false);
+          }}
+        />
+      )}
+    </View>
+  );
+}
+
+/** SuperHub's own favourites: notes, documents and folders, reorderable. */
+function FavouritesEditor({cfg, update, openModal}: {cfg: DashboardConfig; update: UP; openModal: (m: Modal) => void}) {
+  const zi = cfg.zones.findIndex(z => z.type === 'favourites');
+  const paths: string[] = zi >= 0 ? (cfg.zones[zi] as any).paths ?? [] : [];
+  const edit = (fn: (p: string[]) => void) =>
+    update(c => {
+      let i = c.zones.findIndex(z => z.type === 'favourites');
+      if (i < 0) {
+        c.zones.push({type: 'favourites', title: 'Favourites', paths: [], col: c.layout.columns > 1 ? 1 : 0});
+        i = c.zones.length - 1;
+      }
+      fn((c.zones[i] as any).paths);
+    });
+  const name = (p: string) => p.substring(p.lastIndexOf('/') + 1);
+  return (
+    <>
+      <Text style={ui.wizStepTag}>Favourites</Text>
+      <Text style={ui.subLabel}>The notes, documents and folders the ♡ button and the Favourites section show, in this order.</Text>
+      {paths.map((p, k) => (
+        <View key={p} style={[ui.row, {alignItems: 'center', borderBottomWidth: 1, borderColor: '#dddddd', paddingVertical: 6}]}>
+          <Text style={[ui.itemText, {flex: 1, fontSize: 16}]} numberOfLines={1}>
+            {/\.[a-z0-9]{2,5}$/i.test(p) ? '📄 ' : '📁 '}
+            {name(p)}
+          </Text>
+          <Mini label="↑" onPress={() => edit(x => void moveItem(x, k, -1))} />
+          <Mini label="↓" onPress={() => edit(x => void moveItem(x, k, 1))} />
+          <Mini label="✕" onPress={() => edit(x => void x.splice(k, 1))} />
+        </View>
+      ))}
+      <View style={[ui.row, {marginTop: 6}]}>
+        <Mini
+          label="＋ Add notes or folders…"
+          onPress={() => openModal({kind: 'shortcuts', onDone: picks => edit(x => picks.forEach(pk => !x.includes(pk.path) && x.push(pk.path)))})}
+        />
+      </View>
+    </>
+  );
+}
+
+function HomeEditor({cfg, update, openModal}: {cfg: DashboardConfig; update: UP; openModal: (m: Modal) => void}) {
+  const h = cfg.home;
+  return (
+    <Group title="Home screen" defaultOpen>
+      <Text style={ui.wizStepTag}>Layout</Text>
+      <Seg
+        options={[{v: 'on', label: 'Home (clock, dock, previews)'}, {v: 'off', label: 'Blocks only'}]}
+        value={h.on ? 'on' : 'off'}
+        onChange={v => update(c => void (c.home.on = v === 'on'))}
+      />
+      {h.on && (
+        <>
+          <Text style={ui.wizStepTag}>Clock</Text>
+          <Seg
+            options={[{v: '24', label: '24-hour'}, {v: '12', label: '12-hour'}]}
+            value={h.hour24 ? '24' : '12'}
+            onChange={v => update(c => void (c.home.hour24 = v === '24'))}
+          />
+          <Seg
+            options={[{v: 'thin', label: 'Thin digits'}, {v: 'bold', label: 'Bold digits'}]}
+            value={h.clockBold ? 'bold' : 'thin'}
+            onChange={v => update(c => void (c.home.clockBold = v === 'bold'))}
+          />
+          <Text style={ui.wizStepTag}>Recent page previews</Text>
+          <Seg
+            options={[0, 3, 4, 5, 6].map(n => ({v: String(n), label: n ? String(n) : 'None'}))}
+            value={String(h.recent)}
+            onChange={v => update(c => void (c.home.recent = Number(v)))}
+          />
+          <FavouritesEditor cfg={cfg} update={update} openModal={openModal} />
+          <Text style={ui.wizStepTag}>Home buttons</Text>
+          <Text style={ui.subLabel}>
+            Up to ten buttons, five to a row. Each has a name, a picture (tap it to choose another), a place on the screen, and
+            what it opens: a folder, a note or PDF, an app installed on this Supernote, a SuperHub page (Favourites, Starred
+            pages, Keywords, Search, Note Clips, To-do), or today's notebook in a folder of dated notebooks (YYYY/YYYY-MM-DD.note).
+          </Text>
+          <View style={{borderWidth: 1, borderColor: '#000000', borderRadius: 8, paddingVertical: 6, marginBottom: 10}}>
+            <View style={{flexDirection: 'row', flexWrap: 'wrap'}}>
+              {h.dock.map((d, k) => (
+                <View key={k} style={{width: '20%', alignItems: 'center', paddingVertical: 4}}>
+                  <DockPicture d={d} size={64} />
+                  <Text style={{fontSize: 13, color: '#000000'}} numberOfLines={1}>
+                    {k + 1}. {d.label}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+          {h.dock.map((d, i) => (
+            <DockSlot key={i} i={i} d={d} n={h.dock.length} update={update} openModal={openModal} />
+          ))}
+          <View style={ui.row}>
+            {h.dock.length < MAX_DOCK && (
+              <Mini label="＋ Add a button" onPress={() => update(c => void c.home.dock.push({kind: 'none', label: '', glyph: '+'}))} />
+            )}
+            <Mini label="↺ Clear all buttons" onPress={() => update(c => void (c.home.dock = clone(DEFAULT_HOME.dock)))} />
+            <Mini
+              label="↺ Default blocks (Stars, Favourites, Keywords)"
+              onPress={() =>
+                update(c => {
+                  c.zones = clone(HOME_ZONES);
+                  c.layout.columns = 2;
+                })
+              }
+            />
+          </View>
+        </>
+      )}
+    </Group>
+  );
+}
+
+function StepLook({cfg, update, openModal}: {cfg: DashboardConfig; update: UP; openModal: (m: Modal) => void}) {
   const cols = cfg.layout.columns;
   const setCols = (n: 1 | 2 | 3) =>
     update(c => {
@@ -207,7 +454,8 @@ function StepLook({cfg, update}: {cfg: DashboardConfig; update: UP}) {
   }, []);
   return (
     <View>
-      <Group title="Layout & theme" defaultOpen>
+      <HomeEditor cfg={cfg} update={update} openModal={openModal} />
+      <Group title="Layout & theme">
       <Text style={ui.wizStepTag}>Layout: columns</Text>
       <View style={ui.snapWrap}>
         {([1, 2, 3] as const).map(n => (
@@ -260,7 +508,7 @@ function StepLook({cfg, update}: {cfg: DashboardConfig; update: UP}) {
       </View>
 
       <Text style={ui.wizStepTag}>Bubble</Text>
-      <Text style={ui.subLabel}>The house floats over every screen: tap to open the dashboard, drag to move. Set Off to use only the toolbar SuperDashboard button.</Text>
+      <Text style={ui.subLabel}>The house floats over every screen: tap to open the dashboard, drag to move. Set Off to use only the toolbar SuperHub button.</Text>
       <View style={ui.snapWrap}>
         {(['icon', 'off'] as BubbleMode[]).map(m => (
           <Snap
@@ -429,7 +677,7 @@ function StepLook({cfg, update}: {cfg: DashboardConfig; update: UP}) {
   );
 }
 
-const ADDABLE: Zone['type'][] = ['shortcuts', 'stars', 'keywords', 'apps', 'recent', 'clock', 'search', 'status', 'nav', 'clips', 'todo', 'toc'];
+const ADDABLE: Zone['type'][] = ['favourites', 'shortcuts', 'stars', 'keywords', 'apps', 'recent', 'clock', 'search', 'status', 'nav', 'clips', 'todo', 'toc'];
 
 /** Icon + name for a placed block in the canvas. */
 function blockLabel(z: Zone): string {
@@ -942,7 +1190,7 @@ function MiniPage({theme, cols, zones, width, grow, corners}: {theme: Theme; col
     // (not flex: 1, whose 0 basis ignores the content) keeps the columns at their
     // real height, so the bottom band always sits below the longest column.
     <View style={[ui.miniPage, grow ? {width, minHeight: height} : {width, height}]}>
-      <Text style={ui.miniPageTitle}>SuperDashboard</Text>
+      <Text style={ui.miniPageTitle}>SuperHub</Text>
       {zones.length === 0 && <Text style={{fontSize: 9, color: '#999', marginTop: 6}}>empty: add sections</Text>}
       {band('top')}
       <View style={{flexDirection: 'row', flexGrow: 1}}>
@@ -1470,6 +1718,7 @@ function newZone(type: Zone['type']): Zone {
   if (type === 'clips') return {type, title: 'Clips', folders: [], labels: [], display: 'grid'};
   if (type === 'todo') return {type, title: 'To-do', folders: [], labels: [], display: 'list'};
   if (type === 'toc') return {type, title: 'Contents', indentByStyle: false, titleLevels: [1, 2, 3, 4]};
+  if (type === 'favourites') return {type, title: 'Favourites', paths: []};
   return {type: 'apps', title: 'Apps', apps: []};
 }
 

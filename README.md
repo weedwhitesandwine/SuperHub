@@ -1,3 +1,24 @@
+# SuperHub (Supernote plugin)
+
+**SuperHub** is a calm home screen for Supernote: a clock, ten pencil-sketch buttons you name and point at any folder, note, app or SuperHub page, and your recent pages at a glance.
+
+SuperHub is based on [SuperDashboard](https://github.com/AgP42/SuperDashboard) by **AgP42**, used under the MIT licence. Thank you to AgP42 for the original plugin.
+
+![Home screen](docs/img/superhub/1-home.png)
+
+- **Home screen**: a framed clock (date, week, battery), ten buttons in two rows of five, and your most recent pages as previews.
+- **Buttons are yours**: a fresh install starts with ten empty slots. In Settings, give each one a picture (28 pencil-sketch icons), a name, a place, and what it opens: a folder, a note or PDF, any installed app, a SuperHub page (Favourites, Starred pages, Keywords, Search, Note Clips, To-do), or today's notebook in a folder of dated notebooks (`YYYY/YYYY-MM-DD.note`).
+- **Starred pages**: every page with a hand-drawn five-point star, as a grid of previews.
+- **Favourites**: SuperHub's own list of notes and folders.
+
+| | | |
+|---|---|---|
+| ![Blank slate](docs/img/superhub/2-blank-slate.png) | ![Settings](docs/img/superhub/3-settings.png) | ![Icons](docs/img/superhub/4-icons.png) |
+
+Build: `./buildPlugin.sh` → `build/outputs/SuperDashboard.snplg`; copy it to `MyStyle/` on the device and install it from Settings → Apps → Plugins → Add Plugin. Icons: `bash icon-src/build.sh` regenerates them from `icon-src/`.
+
+---
+
 # SuperDashboard (Supernote plugin)
 
 A configurable, always-available dashboard for Supernote e-ink devices. Its face is a draggable

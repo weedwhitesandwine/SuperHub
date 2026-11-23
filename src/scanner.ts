@@ -153,6 +153,9 @@ const CACHE_FILE = 'scancache.json';
 let fileCache: Map<string, FileScan> | null = null;
 let cacheDirty = false;
 
+/** 2 = SDK refusals are no longer cached as "nothing found" (v1 caches may hold them). */
+const CACHE_VERSION = 2;
+
 async function loadCache(): Promise<Map<string, FileScan>> {
   if (fileCache) return fileCache;
   const map = new Map<string, FileScan>();
@@ -169,7 +172,7 @@ async function loadCache(): Promise<Map<string, FileScan>> {
     }
     if (text && text.trim()) {
       const obj = JSON.parse(text);
-      for (const [k, v] of Object.entries(obj.files ?? {})) map.set(k, v as FileScan);
+      if (obj.version === CACHE_VERSION) for (const [k, v] of Object.entries(obj.files ?? {})) map.set(k, v as FileScan);
       if (migrated) {
         // Migrated entries reference line PNGs in the legacy dir, which we
         // purge; drop the previews so the next scan regenerates them in the
@@ -194,7 +197,7 @@ async function loadCache(): Promise<Map<string, FileScan>> {
 async function saveCache(): Promise<void> {
   if (!fileCache || !cacheDirty) return;
   const dir = await cacheDir();
-  const json = JSON.stringify({version: 1, files: Object.fromEntries(fileCache)});
+  const json = JSON.stringify({version: CACHE_VERSION, files: Object.fromEntries(fileCache)});
   try {
     await DashboardNative.writeFile(dir + CACHE_FILE, json);
   } catch {
@@ -251,9 +254,30 @@ async function sweepLineImages(): Promise<void> {
   }
 }
 
+/** An SDK call that refused (e.g. code 118 "the handwriting app is not open")
+ *  must never be read as "nothing found": that got cached as "no stars" and
+ *  made starred notes vanish. Throw instead, so the note is retried next scan. */
+function okOrThrow(res: any, what: string): void {
+  if (res && typeof res === 'object' && !Array.isArray(res) && res.success === false) {
+    throw new Error(`${what}: ${res.error?.message ?? 'failed'}`);
+  }
+}
+
 async function scanFileStars(path: string, mode: LineMode, mtime: number): Promise<StarPage[]> {
-  const pageIdx = unwrap<number[]>(await PluginFileAPI.searchFiveStars(path)) ?? [];
-  if (!pageIdx.length) return [];
+  // Read the stars straight from the file (works with the Notes app closed);
+  // fall back to the SDK only if the file can't be parsed.
+  try {
+    const list: {page: number; count: number}[] = await DashboardNative.fileStars(path);
+    const pages: StarPage[] = list.map(e => ({page: e.page, count: e.count})).sort((a, b) => a.page - b.page);
+    if (pages.length && mode !== 'off') await addLinePreview(path, pages, mode, mtime);
+    return pages;
+  } catch (e: any) {
+    DashboardNative?.appendLog?.(`[stars] file read failed for ${path}: ${e?.message}; using the SDK`).catch(() => {});
+  }
+  const raw = await PluginFileAPI.searchFiveStars(path);
+  okOrThrow(raw, 'searchFiveStars');
+  const pageIdx = unwrap<number[]>(raw) ?? [];
+  if (!Array.isArray(pageIdx) || !pageIdx.length) return [];
   const counts = new Map<number, number>();
   // ⚠️ CHAUVET 1-INDEX: DEVICE-TEST. `p` is searchFiveStars' page index; we treat
   // it as 0-based and store StarPage.page 1-based for display/open. The round-trip
@@ -291,7 +315,9 @@ async function addLinePreview(path: string, pages: StarPage[], mode: LineMode, m
 }
 
 async function scanFileKeywords(path: string): Promise<{keyword: string; page: number}[]> {
-  const total = unwrap<number>(await PluginFileAPI.getNoteTotalPageNum(path)) ?? 0;
+  const rawTotal = await PluginFileAPI.getNoteTotalPageNum(path);
+  okOrThrow(rawTotal, 'getNoteTotalPageNum');
+  const total = unwrap<number>(rawTotal) ?? 0;
   // ⚠️ CHAUVET 1-INDEX: DEVICE-TEST. This builds a 0-based page list [0..total-1]
   // for getKeyWords and treats the returned k.page as 0-based (→ +1 for display/open).
   // If Chauvet's getKeyWords is now 1-indexed, two things break together: page 0 in
@@ -299,7 +325,9 @@ async function scanFileKeywords(path: string): Promise<{keyword: string; page: n
   // (missed keywords), and `k.page + 1` shows/opens one page too high. If device
   // testing confirms 1-indexing, use [1..total] here and drop the +1 below.
   const pageList = Array.from({length: total}, (_, k) => k);
-  const kws = unwrap<any[]>(await PluginFileAPI.getKeyWords(path, pageList)) ?? [];
+  const rawKw = await PluginFileAPI.getKeyWords(path, pageList);
+  okOrThrow(rawKw, 'getKeyWords');
+  const kws = unwrap<any[]>(rawKw) ?? [];
   return kws.map((k: any) => ({keyword: k?.keyword ?? '', page: (k?.page ?? 0) + 1}));
 }
 
