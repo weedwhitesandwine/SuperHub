@@ -12,6 +12,8 @@ import {leavePlugin} from './src/bubble';
 import {tscale, ZoneView} from './src/zones';
 import {setCornerRadius, ui} from './src/ui';
 import {HubSettings} from './src/hubsettings';
+import {NewNoteScreen} from './src/newnote';
+import type {DockItem} from './src/config';
 import {autoRefreshTitles} from './src/notetoc';
 import {timed} from './src/perf';
 import {blockMatches, Dock, FavouritesPage, HomeClock, RecentStrip, StarredPages} from './src/home';
@@ -83,6 +85,8 @@ function DashboardScreen(): React.JSX.Element {
   const [focus, setFocus] = useState<number | null>(null);
   // ...or one of the two full-screen pages: starred pages / Supernote favourites.
   const [page, setPage] = useState<'stars' | 'favourites' | null>(null);
+  // ...or the New note screen for a New note button.
+  const [newNote, setNewNote] = useState<Extract<DockItem, {kind: 'create'}> | null>(null);
   // Reload config + bump `nonce` on mount and every dashboard (re)entry, so
   // zones re-read their data against the fresh config in one render even though
   // the view is kept mounted across opens. The bubble is NO LONGER hidden here:
@@ -106,6 +110,7 @@ function DashboardScreen(): React.JSX.Element {
         setCfg(c);
         setFocus(null);
         setPage(null);
+        setNewNote(null);
         setNonce(n => n + 1);
         // Keep the shared title cache fresh for Search even when no Contents block
         // is shown: re-read notes modified since the last watermark. Deferred so it
@@ -221,6 +226,8 @@ function DashboardScreen(): React.JSX.Element {
   const focused = cfg && focus !== null ? cfg.zones[focus] : undefined;
   const starFolders = (cfg?.zones.find(z => z.type === 'stars') as any)?.folders ?? [];
 
+  if (newNote) return <NewNoteScreen d={newNote} onClose={() => setNewNote(null)} />;
+
   return (
     <View style={ui.container}>
       <View style={ui.header}>
@@ -259,7 +266,7 @@ function DashboardScreen(): React.JSX.Element {
             <View style={{flex: 1, justifyContent: 'space-between', paddingHorizontal: 6}}>
               <HomeClock hour24={home.hour24} nonce={nonce} font={fontFamily} bold={home.clockBold} />
               <View style={{flex: 1, justifyContent: 'center', paddingVertical: 20}}>
-                <Dock items={home.dock} onBlock={openBlock} font={fontFamily} />
+                <Dock items={home.dock} onBlock={openBlock} onNewNote={setNewNote} font={fontFamily} />
               </View>
               <RecentStrip count={home.recent} nonce={nonce} font={fontFamily} />
             </View>

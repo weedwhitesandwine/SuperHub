@@ -32,9 +32,9 @@ const INK = '#000000';
 const GREY = '#555555';
 
 // ---- type scale: large, sized for a finger --------------------------------------
-const T = {title: 30, h: 26, body: 21, small: 18, btn: 21};
+export const T = {title: 30, h: 26, body: 21, small: 18, btn: 21};
 
-const st = {
+export const st = {
   card: {borderWidth: 2, borderColor: INK, borderRadius: 14, padding: 18, marginBottom: 22, backgroundColor: '#ffffff'},
   h: {fontSize: T.h, fontWeight: '700' as const, color: INK, marginBottom: 6},
   p: {fontSize: T.small, color: GREY, marginBottom: 12, lineHeight: 26},
@@ -42,7 +42,7 @@ const st = {
   row: {flexDirection: 'row' as const, flexWrap: 'wrap' as const, alignItems: 'center' as const},
 };
 
-function Btn({label, onPress, on, primary, disabled, wide}: {label: string; onPress: () => void; on?: boolean; primary?: boolean; disabled?: boolean; wide?: boolean}) {
+export function Btn({label, onPress, on, primary, disabled, wide}: {label: string; onPress: () => void; on?: boolean; primary?: boolean; disabled?: boolean; wide?: boolean}) {
   const dark = on || primary;
   return (
     <TouchableOpacity
@@ -66,7 +66,7 @@ function Btn({label, onPress, on, primary, disabled, wide}: {label: string; onPr
   );
 }
 
-function Choice<V extends string>({options, value, onChange}: {options: {v: V; label: string}[]; value: V; onChange: (v: V) => void}) {
+export function Choice<V extends string>({options, value, onChange}: {options: {v: V; label: string}[]; value: V; onChange: (v: V) => void}) {
   return (
     <View style={st.row}>
       {options.map(o => (
@@ -149,7 +149,7 @@ async function listDirSorted(d: string): Promise<any[]> {
 const OPENABLE = /\.(note|pdf|epub|cbz|fb2|xps|txt|doc|docx)$/i;
 
 /** Pick a folder (mode 'folder') or a file (mode 'file'). One tap on a file picks it. */
-function PathPicker({mode, start, onPick, onClose}: {mode: 'folder' | 'file'; start?: string; onPick: (path: string) => void; onClose: () => void}) {
+export function PathPicker({mode, start, onPick, onClose}: {mode: 'folder' | 'file'; start?: string; onPick: (path: string) => void; onClose: () => void}) {
   const [dir, setDir] = useState(start ?? ROOT + '/Note');
   const [items, setItems] = useState<any[] | null>(null);
   const [roots, setRoots] = useState<StorageRoot[]>([]);
@@ -363,7 +363,21 @@ function ButtonEditor({i, d, n, setItem, swap, clear, openPicker, userIcons}: {
         <Btn label="New note" on={d.kind === 'create' && !d.doc} onPress={() => openPicker({kind: 'create'})} />
         <Btn label="New typed document" on={d.kind === 'create' && !!d.doc} onPress={() => openPicker({kind: 'createdoc'})} />
       </View>
-      {d.kind === 'create' && !d.doc && <NewNoteOptions d={d} setItem={setItem} />}
+      {d.kind === 'create' && !d.doc && (
+        <>
+          <Text style={st.label}>When tapped</Text>
+          <Choice
+            options={[{v: 'ask', label: 'Let me choose each time'}, {v: 'go', label: 'Make it straight away'}]}
+            value={d.ask === false ? 'go' : 'ask'}
+            onChange={v => setItem({...d, ask: v === 'ask'})}
+          />
+          {d.ask === false ? (
+            <NewNoteOptions d={d} setItem={setItem} />
+          ) : (
+            <Text style={st.p}>Tapping the button opens a New note screen where you choose the name, folder ({short(d.folder)} to start with), page style, handwriting recognition and orientation.</Text>
+          )}
+        </>
+      )}
       {d.kind === 'create' && d.doc && (
         <Text style={st.p}>
           Makes a new document in {short(d.folder)} and opens it in the Supernote's document editor, where you type instead of write. Tap “New typed document” again to choose another folder.

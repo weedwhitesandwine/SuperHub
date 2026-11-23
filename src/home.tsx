@@ -99,13 +99,15 @@ async function openToday(root: string) {
   return openFolder(root);
 }
 
-export function pressDock(d: DockItem, onBlock: (b: string) => void) {
+export function pressDock(d: DockItem, onBlock: (b: string) => void, onNewNote?: (d: Extract<DockItem, {kind: 'create'}>) => void) {
   if (d.kind === 'none') setRoute('config');
   else if (d.kind === 'folder') openFolder(d.path);
   else if (d.kind === 'note') void openFile(d.path, 0);
   else if (d.kind === 'app') launchApp(d.component);
   else if (d.kind === 'today') void openToday(d.root);
-  else if (d.kind === 'create') void (d.doc ? createDoc(d.folder) : createNote(d.folder, d.template, d.recognition));
+  else if (d.kind === 'create' && d.doc) void createDoc(d.folder);
+  else if (d.kind === 'create' && d.ask !== false && onNewNote) onNewNote(d);
+  else if (d.kind === 'create') void createNote(d.folder, d.template, d.recognition, undefined, d.landscape);
   else onBlock(d.block);
 }
 
@@ -131,12 +133,12 @@ export function DockPicture({d, size}: {d: DockItem; size: number}) {
 }
 
 /** The home buttons: rows of five pencil-sketch icons with their names. */
-export function Dock({items, onBlock, font}: {items: DockItem[]; onBlock: (b: string) => void; font?: string}) {
+export function Dock({items, onBlock, onNewNote, font}: {items: DockItem[]; onBlock: (b: string) => void; onNewNote?: (d: Extract<DockItem, {kind: 'create'}>) => void; font?: string}) {
   const ff = font ? {fontFamily: font} : null;
   return (
     <View style={{flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 6}}>
       {items.map((d, i) => (
-        <TouchableOpacity key={i} onPress={() => pressDock(d, onBlock)} style={{width: '20%', alignItems: 'center', paddingVertical: 14}}>
+        <TouchableOpacity key={i} onPress={() => pressDock(d, onBlock, onNewNote)} style={{width: '20%', alignItems: 'center', paddingVertical: 14}}>
           <DockPicture d={d} size={140} />
           <Text style={[{fontSize: 20, fontWeight: '600', color: INK, marginTop: 8}, ff]} numberOfLines={1}>
             {d.label || (d.kind === 'none' ? 'Set up' : '')}

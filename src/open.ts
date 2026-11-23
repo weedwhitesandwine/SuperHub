@@ -107,10 +107,14 @@ const pad = (n: number) => String(n).padStart(2, '0');
 
 /** Make a new notebook in `folder`, named the way the Supernote names them
  *  (YYYYMMDD_HHMMSS.note), then open it. Without a template, the plain white page. */
-export async function createNote(folder: string, template?: string, recognition?: boolean): Promise<void> {
+export function stampName(): string {
   const d = new Date();
-  const name = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
-  const notePath = `${folder.replace(/\/$/, '')}/${name}.note`;
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
+/** Returns false (after telling the user) when the note could not be made. */
+export async function createNote(folder: string, template?: string, recognition?: boolean, name?: string, landscape?: boolean): Promise<boolean> {
+  const notePath = `${folder.replace(/\/$/, '')}/${(name || stampName()).replace(/[\\/:*?"<>|]/g, '_')}.note`;
   try {
     let tpl = template;
     if (!tpl) {
@@ -118,25 +122,25 @@ export async function createNote(folder: string, template?: string, recognition?
       const list: any[] = (r?.success ? r.result : r) ?? [];
       tpl = (list.find(t => /white/i.test(t?.name ?? '')) ?? list[0])?.name;
     }
-    const res: any = await PluginFileAPI.createNote({notePath, template: tpl ?? 'style_white', mode: recognition ? 1 : 0, isPortrait: true});
+    if (await DashboardNative.fileExists(notePath).catch(() => false)) throw new Error('exists');
+    const res: any = await PluginFileAPI.createNote({notePath, template: tpl ?? 'style_white', mode: recognition ? 1 : 0, isPortrait: !landscape});
     if (!(res === true || res?.success)) throw new Error(res?.error?.message ?? 'createNote refused');
   } catch {
     try {
-      await NativeUIUtils.showRattaDialog("Couldn't make a new note.", '', 'OK', false);
+      await NativeUIUtils.showRattaDialog("Couldn't make the note. Is there already a note with that name?", '', 'OK', false);
     } catch {
       /* ignore */
     }
-    return;
+    return false;
   }
   await openFile(notePath, 1);
+  return true;
 }
 
 /** Make a new typed document (YYYYMMDD_HHMMSS.doc) in `folder` and open it in the
  *  Supernote's document editor, like the Files app's new-document button. */
 export async function createDoc(folder: string): Promise<void> {
-  const d = new Date();
-  const name = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
-  await go(() => DashboardNative.newTypedDocument(`${folder.replace(/\/$/, '')}/${name}.doc`), 'make a new document');
+  await go(() => DashboardNative.newTypedDocument(`${folder.replace(/\/$/, '')}/${stampName()}.doc`), 'make a new document');
 }
 
 /** The Supernote's own page styles, for the New note button's settings. */
@@ -148,4 +152,26 @@ export async function systemTemplates(): Promise<string[]> {
   } catch {
     return [];
   }
+}
+
+/** The user's own page templates: images anywhere in MyStyle (two folders deep),
+ *  except SuperHub's and plugins' own folders and notebook covers. */
+export async function myTemplates(): Promise<string[]> {
+  const out: string[] = [];
+  const skip = /^(\.|Plugins$|SuperHub$|Covers$)/;
+  const walk = async (dir: string, depth: number) => {
+    let list: any[] = [];
+    try {
+      list = (await DashboardNative.listDir(dir)) ?? [];
+    } catch {
+      return;
+    }
+    for (const e of list) {
+      if (e.isDir) {
+        if (depth < 2 && !skip.test(e.name)) await walk(e.path, depth + 1);
+      } else if (/\.(png|jpe?g|webp)$/i.test(e.name)) out.push(e.path);
+    }
+  };
+  await walk('/storage/emulated/0/MyStyle', 0);
+  return out.sort((a, b) => a.localeCompare(b));
 }
