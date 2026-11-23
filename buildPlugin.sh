@@ -675,6 +675,11 @@ main() {
     local project_root="${1:-$(pwd)}"
     get_package_info "$project_root"
 
+    # Start from empty output folders: everything left in build/generated is zipped
+    # into the package, so a leftover bundle from an earlier name ends up in it too
+    # (and the plugin host may load that one instead).
+    rm -rf "$project_root/build/generated" "$project_root/build/outputs"
+
     local gen_dir
     gen_dir="$(ensure_build_generated_dir "$project_root")"
 
