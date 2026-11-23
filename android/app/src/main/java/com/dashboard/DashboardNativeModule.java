@@ -140,6 +140,27 @@ public class DashboardNativeModule extends ReactContextBaseJavaModule {
         }
     }
 
+    /**
+     * Make a new typed document (.doc) at `path` and open it in the Supernote's own
+     * document editor, the way the Files app's "new document" button does: the
+     * editor's DocEditorActivity reads extras file_path + type=create and writes
+     * its blank document there itself (verified in SupernoteDocument, Chauvet 3.31).
+     */
+    @ReactMethod
+    public void newTypedDocument(String path, Promise promise) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setComponent(new ComponentName("com.supernote.document", "com.supernote.document.smartoffice.DocEditorActivity"));
+            intent.putExtra("file_path", path);
+            intent.putExtra("type", "create");
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getReactApplicationContext().startActivity(intent);
+            promise.resolve(true);
+        } catch (Exception e) {
+            promise.reject("NEWDOC_FAILED", e.getClass().getSimpleName() + ": " + e.getMessage(), e);
+        }
+    }
+
     /** Launch any activity by "package/activity" component string (Apps zone). */
     @ReactMethod
     public void launchActivity(String component, Promise promise) {

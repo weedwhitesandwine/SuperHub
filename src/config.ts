@@ -219,8 +219,8 @@ export type DockItem = (
   | {kind: 'today'; label: string; glyph: string; root: string}
   /** Make a new notebook in `folder` (named like the Supernote does: YYYYMMDD_HHMMSS) and open it.
    *  `template` is a system template name or a template image path; `recognition` = real-time
-   *  recognition notebook. */
-  | {kind: 'create'; label: string; glyph: string; folder: string; template?: string; recognition?: boolean}
+   *  recognition notebook. doc = a typed document (.doc) in the Supernote's document editor instead. */
+  | {kind: 'create'; label: string; glyph: string; folder: string; template?: string; recognition?: boolean; doc?: boolean}
   | {kind: 'block'; label: string; glyph: string; block: 'stars' | 'keywords' | 'favourites' | 'clips' | 'todo' | 'search'}
 ) & {
   /** The picture: a built-in icon name (assets/hub/icons, without .png) or the full path of the

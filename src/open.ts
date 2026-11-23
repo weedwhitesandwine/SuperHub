@@ -131,6 +131,14 @@ export async function createNote(folder: string, template?: string, recognition?
   await openFile(notePath, 1);
 }
 
+/** Make a new typed document (YYYYMMDD_HHMMSS.doc) in `folder` and open it in the
+ *  Supernote's document editor, like the Files app's new-document button. */
+export async function createDoc(folder: string): Promise<void> {
+  const d = new Date();
+  const name = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  await go(() => DashboardNative.newTypedDocument(`${folder.replace(/\/$/, '')}/${name}.doc`), 'make a new document');
+}
+
 /** The Supernote's own page styles, for the New note button's settings. */
 export async function systemTemplates(): Promise<string[]> {
   try {

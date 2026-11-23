@@ -130,7 +130,7 @@ function describe(d: DockItem): string {
     case 'block':
       return 'SuperHub page: ' + (PAGES.find(p => p.v === d.block)?.label ?? d.block);
     case 'create':
-      return 'A new note in ' + short(d.folder);
+      return (d.doc ? 'A new typed document in ' : 'A new note in ') + short(d.folder);
   }
 }
 
@@ -299,7 +299,7 @@ function Backups({cfg, onLoad, onClose}: {cfg: DashboardConfig; onLoad: (c: Dash
 }
 
 // ---- one home button ---------------------------------------------------------------
-type Picker = {kind: 'folder' | 'file' | 'today' | 'create' | 'app' | 'favourite-file' | 'favourite-folder' | 'scan-folder'} | {kind: 'backups'} | null;
+type Picker = {kind: 'folder' | 'file' | 'today' | 'create' | 'createdoc' | 'app' | 'favourite-file' | 'favourite-folder' | 'scan-folder'} | {kind: 'backups'} | null;
 
 function NameField({value, onSave}: {value: string; onSave: (v: string) => void}) {
   const [t, setT] = useState(value);
@@ -360,9 +360,15 @@ function ButtonEditor({i, d, n, setItem, swap, clear, openPicker, userIcons}: {
         <Btn label="App" on={d.kind === 'app'} onPress={() => openPicker({kind: 'app'})} />
         <Btn label="SuperHub page" on={d.kind === 'block' || pages} onPress={() => setPages(p => !p)} />
         <Btn label="Today's notebook" on={d.kind === 'today'} onPress={() => openPicker({kind: 'today'})} />
-        <Btn label="New note" on={d.kind === 'create'} onPress={() => openPicker({kind: 'create'})} />
+        <Btn label="New note" on={d.kind === 'create' && !d.doc} onPress={() => openPicker({kind: 'create'})} />
+        <Btn label="New typed document" on={d.kind === 'create' && !!d.doc} onPress={() => openPicker({kind: 'createdoc'})} />
       </View>
-      {d.kind === 'create' && <NewNoteOptions d={d} setItem={setItem} />}
+      {d.kind === 'create' && !d.doc && <NewNoteOptions d={d} setItem={setItem} />}
+      {d.kind === 'create' && d.doc && (
+        <Text style={st.p}>
+          Makes a new document in {short(d.folder)} and opens it in the Supernote's document editor, where you type instead of write. Tap “New typed document” again to choose another folder.
+        </Text>
+      )}
       {pages && (
         <View style={{marginTop: 4}}>
           {PAGES.map(p => (
@@ -568,6 +574,7 @@ export function HubSettings(): React.JSX.Element {
         onPick={p => {
           if (picker.kind === 'folder') setItem(sel, {...base, kind: 'folder', path: p, label: cur.label || baseName(p)});
           else if (picker.kind === 'file') setItem(sel, {...base, kind: 'note', path: p, label: cur.label || baseName(p)});
+          else if (picker.kind === 'createdoc') setItem(sel, {...base, kind: 'create', folder: p, doc: true, label: cur.label || 'New document'});
           else if (picker.kind === 'create')
             setItem(sel, {...base, kind: 'create', folder: p, template: cur.kind === 'create' ? cur.template : undefined, recognition: cur.kind === 'create' ? cur.recognition : undefined, label: cur.label || 'New note'});
           else if (picker.kind === 'today') setItem(sel, {...base, kind: 'today', root: p, label: cur.label || baseName(p)});
