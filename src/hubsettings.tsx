@@ -255,7 +255,7 @@ function Backups({cfg, onLoad, onClose}: {cfg: DashboardConfig; onLoad: (c: Dash
   return (
     <Screen title="Saved copies of your settings" onClose={onClose}>
       <Text style={st.p}>
-        Save a copy of all your SuperHub settings under a name, and bring it back at any time. Copies are kept in MyStyle/Plugins/Dashboard/profiles.json, so they survive
+        Save a copy of all your SuperHub settings under a name, and bring it back at any time. Copies are kept in MyStyle/Plugins/SuperHub/profiles.json, so they survive
         updates and reinstalls. SuperHub also keeps an automatic backup of the last settings it saved.
       </Text>
       <View style={st.row}>
@@ -740,8 +740,8 @@ export function HubSettings(): React.JSX.Element {
           </View>
         </Card>
 
-        <Card title="Troubleshooting" note="Keep a technical log in MyStyle/Plugins/Dashboard to attach to a bug report.">
-          <Choice options={[{v: 'off', label: 'No log'}, {v: 'on', label: 'Keep a log'}]} value={cfg.debugLog === false ? 'off' : 'on'} onChange={v => update(c => void (c.debugLog = v === 'on'))} />
+        <Card title="Troubleshooting" note="Keep a technical log in MyStyle/Plugins/SuperHub to attach to a bug report.">
+          <Choice options={[{v: 'off', label: 'No log'}, {v: 'on', label: 'Keep a log'}]} value={cfg.debugLog === true ? 'on' : 'off'} onChange={v => update(c => void (c.debugLog = v === 'on'))} />
         </Card>
 
         <Text style={[st.p, {textAlign: 'center', marginTop: 4, marginBottom: 30}]}>

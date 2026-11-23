@@ -1,101 +1,77 @@
-# SuperHub (Supernote plugin)
+# SuperHub
 
-**SuperHub** is a calm home screen for Supernote: a clock, ten pencil-sketch buttons you name and point at any folder, note, app or SuperHub page, and your recent pages at a glance.
+**SuperHub** is a calm home screen for Supernote: a clock, ten pencil-sketch buttons you name and point at anything, and your recent pages at a glance.
 
 SuperHub is based on [SuperDashboard](https://github.com/AgP42/SuperDashboard) by **AgP42**, used under the MIT licence. Thank you to AgP42 for the original plugin.
 
 ![Home screen](docs/img/superhub/1-home.png)
 
-- **Home screen**: a framed clock (date, week, battery), ten buttons in two rows of five, and your most recent pages as previews.
-- **Buttons are yours**: a fresh install starts with ten empty slots. In Settings, give each one a picture (28 pencil-sketch icons), a name, a place, and what it opens: a folder, a note or PDF, any installed app, a SuperHub page (Favourites, Starred pages, Keywords, Search, Note Clips, To-do), or today's notebook in a folder of dated notebooks (`YYYY/YYYY-MM-DD.note`).
-- **Starred pages**: every page with a hand-drawn five-point star, as a grid of previews.
-- **Favourites**: SuperHub's own list of notes and folders.
+## What it does
 
-| | | |
-|---|---|---|
-| ![Blank slate](docs/img/superhub/2-blank-slate.png) | ![Settings](docs/img/superhub/3-settings.png) | ![Icons](docs/img/superhub/4-icons.png) |
+- **Home screen**: a framed clock (date, week number, battery), ten buttons in two rows of five, and your most recent pages as previews. Tap a preview to open it.
+- **Buttons are yours**: give each button a picture, a name, a place on the screen, and something to open:
+  - a folder, or a note or document
+  - any app installed on your Supernote
+  - a SuperHub page: Favourites, Starred pages, Keywords, Search, Note Clips or To-do
+  - a **new note**, where you choose its name, folder, page style, handwriting recognition and orientation
+  - a **new typed document**, opened in the Supernote's own document editor
+  - today's notebook in a folder of dated notebooks (`YYYY/YYYY-MM-DD.note`), for a planner or journal
+- **31 pencil-sketch icons**, or your own pictures.
+- **Starred pages**: every page you drew a five-point star on, as a grid of previews.
+- **Note Clips and To-do**: lasso something in a note and tap *SuperHub Clip* or *SuperHub To-do* in the lasso toolbar.
 
-Build: `./buildPlugin.sh` → `build/outputs/SuperDashboard.snplg`; copy it to `MyStyle/` on the device and install it from Settings → Apps → Plugins → Add Plugin. Icons: `bash icon-src/build.sh` regenerates them from `icon-src/`.
+![The icons](docs/img/superhub/4-icons.png)
 
----
+## Install
 
-# SuperDashboard (Supernote plugin)
+You need Supernote firmware with plugin support: Chauvet **3.29.43 or later** on Manta and Nomad (2.26.40 or later on A5 X and A6 X). SuperHub has been tested on a Manta with 3.31.45.
 
-A configurable, always-available dashboard for Supernote e-ink devices. Its face is a draggable
-**bubble** (the house logo) that floats over everything; tap it to open the dashboard, drag it to move
-it (or open it from the plugin's toolbar button). You compose the dashboard yourself from **modules**,
-in 1, 2 or 3 columns (any block can also span the full width, on top or at the bottom), in the design
-and font you like. It runs **fully on-device and offline**: no account, no network.
+**From InkHub** (once SuperHub is listed there): open InkHub on your Supernote, find SuperHub under Plugins, and install it.
 
-![The dashboard](docs/img/dashboard-hero2.png)
+**From this page**:
 
-📖 **[User Guide](USER_GUIDE.md)** (full walkthrough: install, configuration, every module, tips) ·
-⬇ **[Latest release](../../releases/latest)**
+1. Download `SuperHub.snplg` from [Releases](https://github.com/weedwhitesandwine/SuperHub/releases/latest).
+2. Copy it into the **MyStyle** folder on your Supernote (USB cable, Browse & Access, or your cloud sync).
+3. On the Supernote: **Settings → Apps → Plugins → Add Plugin**, and choose `SuperHub.snplg`.
 
-## Modules
+## Open it
 
-- **Shortcuts**: open a folder, note, PDF or EPUB in one tap.
-- **Files**: a small in-dashboard file browser.
-- **Search**: file & folder names, keywords, and note headings, with a compact query grammar.
-- **Contents**: the current note's headings as a tappable outline; tap one to jump to its page.
-- **Recent**: your recent notes and documents (including on an SD card).
-- **Stars**: five-star pages from a scan, grouped by note, with optional line previews.
-- **Keywords**: note keywords as tappable chips, each opening its note on the right page.
-- **Clock**: time, date, week number and extra time zones, in a choice of faces.
-- **Device**: battery, free storage and a library stats line.
-- **Apps**: launchers for your device apps.
-- **Note Clips**: snippets you lassoed from notes (or PDFs / EPUBs, or selected PDF text), as labelled
-  thumbnails you can paste back as native ink or editable text.
-- **To-do**: tasks captured the same way; a note task gets a tick-box you check from the dashboard or by
-  hand, a PDF / EPUB task is dashboard-only.
-- **Empty**: a spacer to line columns up (preset or exact px height).
+1. Open any note. In the toolbar, tap the plugin button (the puzzle piece) and choose **SuperHub**.
+2. The first time, allow file access when asked. SuperHub needs it to show your files and save its settings. It never uses the internet.
+3. SuperHub opens on its settings page. Set up your buttons, then tap **Done**.
+4. From then on, a small **house** floats over every screen. Tap it to open SuperHub from anywhere; drag it to move it. (You can hide it in settings and use the toolbar button instead.)
 
-Blocks arrange in 1 / 2 / 3 columns (masonry or fixed height), collapse to their title, and each has an
-**ⓘ** help button in Settings. The **[User Guide](USER_GUIDE.md)** explains how every module works and
-how to configure it.
+## Set up your buttons
 
-## Which version do I need?
+Tap the **gear** at the top left of SuperHub. Tap one of the ten buttons, then:
 
-Supernote's firmware is called **Chauvet**; what matters is the version number. A build made for one
-firmware does not run on the other, so pick the release that matches your device (check it in device
-settings):
+- **Name**: type the name shown under it.
+- **Opens**: choose a folder, a note or document, an app, a SuperHub page, a new note, a new typed document, or today's notebook.
+- **Picture**: choose one of the icons.
+- **Place**: choose its position, 1 to 5 on the top row, 6 to 10 on the bottom row.
 
-| Your Chauvet version | Download |
-|---|---|
-| Older than 3.29.43 (Manta / Nomad) / 2.26.40 (A5 X / A6 X) | **v0.22.0** |
-| 3.29.43 (Manta / Nomad) / 2.26.40 (A5 X / A6 X) or later | **[latest release](../../releases/latest)** |
+A fresh install starts with New note, Calendar, To-do and Digest; the other six are empty for you to fill.
 
-**Install**: copy the `.snplg` into your device's **`MyStyle`** folder, then on the device
-**Settings -> Apps -> Plugins -> Choose Installation Package**. SuperDashboard declares **no INTERNET
-permission**; on first run it asks once for **file access** (READ/WRITE) to scan and open your files and
-save its settings. Full install and permission details are in the [User Guide](USER_GUIDE.md).
+**Your own pictures**: copy square PNG or JPG files into `MyStyle/SuperHub/Icons` on your Supernote, then reopen settings. They appear after the built-in icons.
+
+## Your settings
+
+Settings are saved as you change them, in `MyStyle/Plugins/SuperHub/config.json`, with an automatic backup beside it. Updating or reinstalling SuperHub keeps them. Under **Saved copies of your settings** you can keep named copies and bring them back.
+
+## Permissions
+
+- **File read and write**: to list and open your notes and folders, show previews, make new notes, and save settings in MyStyle.
+- **No internet**: SuperHub works entirely on your Supernote and sends nothing anywhere.
 
 ## Build from source
 
 ```bash
-source ../env.sh                    # JDK 21 + Android SDK on PATH
-./buildPlugin.sh                    # -> build/outputs/SuperDashboard.snplg
-# install on device: Settings -> Apps -> Plugins -> Choose Installation Package (pick the .snplg)
+./buildPlugin.sh           # -> build/outputs/SuperHub.snplg
+bash icon-src/build.sh     # regenerate the icons from icon-src/
 ```
 
-Capabilities validated on A5X + Manta are written up in `docs/FINDINGS.md` and the `supernote-plugin-dev`
-skill under `.claude/skills/`.
+Needs Node 22, JDK 21 and the Android SDK (platform 35, build-tools 35.0.0, NDK 27.1, CMake 3.22). React Native is fixed at 0.79.2 to match the Supernote's plugin host.
 
-On Windows, with Node.js, JDK 17 or newer and the Android SDK installed:
+## Licence
 
-```powershell
-npm.cmd ci --ignore-scripts --no-audit --no-fund
-$env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk" # adjust for your SDK installation
-.\buildPlugin.ps1 # release native code, ARM64; build\outputs\SuperDashboard.snplg
-```
-
-The Windows build defaults to `Release`, selects only that variant's custom native package,
-and stops if native compilation or packaging fails. Use `-BuildVariant Debug` only for development;
-do not deploy a debug build for regular use. The internal `app.npk` is loaded by PluginHost, not
-installed as a standalone APK. USB-copy the `.snplg` into `MyStyle`, then use the device's plugin
-installer; copying alone does not activate the plugin.
-
-## Support
-
-SuperDashboard is a personal project built by a Supernote user, for Supernote users. If it saves you a
-few taps every day, a small contribution is appreciated: https://ko-fi.com/agp42
+MIT. See [LICENSE](LICENSE). SuperHub keeps AgP42's SuperDashboard copyright notice alongside its own.

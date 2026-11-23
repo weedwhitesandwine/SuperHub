@@ -1,6 +1,6 @@
 /**
  * Dashboard configuration: schema, defaults, load/save, named profiles.
- * Stored at MyStyle/Plugins/Dashboard/config.json (older MyStyle/Dashboard/ is a
+ * Stored at MyStyle/Plugins/SuperHub/config.json (older MyStyle/Dashboard/ is a
  * read-only fallback). Read/written via the native reader/writer (fetch caches
  * file:// URLs → stale config; the SDK has no writeFile). The wizard writes it;
  * advanced users can hand-edit the same JSON.
@@ -11,11 +11,10 @@ import {AppItem} from './apps';
 
 const {DashboardNative} = NativeModules;
 
-const CONFIG_PATH = '/storage/emulated/0/MyStyle/Plugins/Dashboard/config.json';
+const CONFIG_PATH = '/storage/emulated/0/MyStyle/Plugins/SuperHub/config.json';
 /** A second copy written with every save, used when config.json is missing or unreadable
  *  (e.g. half-synced), so a bad read never starts the user from blank buttons. */
-const BACKUP_PATH = '/storage/emulated/0/MyStyle/Plugins/Dashboard/config.backup.json';
-const LEGACY_CONFIG_PATH = '/storage/emulated/0/MyStyle/Dashboard/config.json';
+const BACKUP_PATH = '/storage/emulated/0/MyStyle/Plugins/SuperHub/config.backup.json';
 
 /** Max recent files a block can show. We rebuild the recent list ourselves from
  *  file mtime (the device's /Recent is out of scope on current firmware), so the
@@ -298,7 +297,7 @@ export interface DashboardConfig {
   clipBacklink?: boolean;
   /** MyStyle/fonts .ttf/.otf path for an OCR'd clip pasted as a text box; '' / undefined = the note's default font. */
   clipFontPath?: string;
-  /** Write the debug log to MyStyle/Plugins/Dashboard/SuperDashboard_log.txt (on by default). */
+  /** Write the debug log to MyStyle/Plugins/SuperHub/SuperHub_log.txt (off by default). */
   debugLog?: boolean;
   zones: Zone[];
 }
@@ -355,19 +354,19 @@ async function readJson(path: string): Promise<string | null> {
  *  from the config object alone. */
 export async function hasSavedConfig(): Promise<boolean> {
   return (
-    (await readJson(CONFIG_PATH)) != null || (await readJson(LEGACY_CONFIG_PATH)) != null
+    (await readJson(CONFIG_PATH)) != null
   );
 }
 
 /** Tell the native logger whether to write the log file (logcat always gets it). */
 function applyLogSetting(cfg: DashboardConfig): void {
   try {
-    DashboardNative?.setFileLog?.(cfg.debugLog !== false).catch(() => {});
+    DashboardNative?.setFileLog?.(cfg.debugLog === true).catch(() => {});
   } catch {}
 }
 
 export async function loadConfig(): Promise<DashboardConfig> {
-  let text = (await readJson(CONFIG_PATH)) ?? (await readJson(LEGACY_CONFIG_PATH));
+  let text = await readJson(CONFIG_PATH);
   try {
     if (text) JSON.parse(text);
   } catch {
@@ -472,7 +471,7 @@ function normalize(raw: any): DashboardConfig {
   const clipFontSize: number = rawSize <= 48 ? 96 : Math.min(220, rawSize);
   const clipFontPath: string | undefined = typeof raw?.clipFontPath === 'string' && raw.clipFontPath ? raw.clipFontPath : undefined;
   const clipBacklink: boolean = raw?.clipBacklink !== false; // default on
-  const debugLog: boolean = raw?.debugLog !== false; // default on
+  const debugLog: boolean = raw?.debugLog === true; // default off
   const corners: number | undefined =
     typeof raw?.corners === 'number' && isFinite(raw.corners) ? Math.max(0, Math.min(MAX_CORNER, Math.round(raw.corners))) : undefined;
 
@@ -576,7 +575,7 @@ function normalizeZone(z: any): Zone {
 }
 
 // ---- Named config profiles (save / reload; guards against accidental reset) --
-const PROFILES_PATH = '/storage/emulated/0/MyStyle/Plugins/Dashboard/profiles.json';
+const PROFILES_PATH = '/storage/emulated/0/MyStyle/Plugins/SuperHub/profiles.json';
 
 async function readProfiles(): Promise<Record<string, DashboardConfig>> {
   try {
