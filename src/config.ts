@@ -12,6 +12,9 @@ import {AppItem} from './apps';
 const {DashboardNative} = NativeModules;
 
 const CONFIG_PATH = '/storage/emulated/0/MyStyle/Plugins/Dashboard/config.json';
+/** A second copy written with every save, used when config.json is missing or unreadable
+ *  (e.g. half-synced), so a bad read never starts the user from blank buttons. */
+const BACKUP_PATH = '/storage/emulated/0/MyStyle/Plugins/Dashboard/config.backup.json';
 const LEGACY_CONFIG_PATH = '/storage/emulated/0/MyStyle/Dashboard/config.json';
 
 /** Max recent files a block can show. We rebuild the recent list ourselves from
@@ -211,12 +214,13 @@ export type DockItem = (
   | {kind: 'none'; label: string; glyph: string}
   | {kind: 'folder'; label: string; glyph: string; path: string}
   | {kind: 'note'; label: string; glyph: string; path: string}
-  | {kind: 'app'; label: string; glyph: string; component: string}
+  | {kind: 'app'; label: string; glyph: string; component: string; appLabel?: string}
   /** A dated planner: today's notebook <root>/<year>/<yyyy-mm-dd>.note on page 2, or <root>/<name> <year>.note when today has none. */
   | {kind: 'today'; label: string; glyph: string; root: string}
   | {kind: 'block'; label: string; glyph: string; block: 'stars' | 'keywords' | 'favourites' | 'clips' | 'todo' | 'search'}
 ) & {
-  /** A picture icon from assets/hub/icons (name without .png); shown instead of the glyph. */
+  /** The picture: a built-in icon name (assets/hub/icons, without .png) or the full path of the
+   *  user's own PNG/JPG in MyStyle/SuperHub/Icons. */
   icon?: string;
 };
 
@@ -352,7 +356,13 @@ function applyLogSetting(cfg: DashboardConfig): void {
 }
 
 export async function loadConfig(): Promise<DashboardConfig> {
-  const text = (await readJson(CONFIG_PATH)) ?? (await readJson(LEGACY_CONFIG_PATH));
+  let text = (await readJson(CONFIG_PATH)) ?? (await readJson(LEGACY_CONFIG_PATH));
+  try {
+    if (text) JSON.parse(text);
+  } catch {
+    text = null;
+  }
+  if (!text) text = await readJson(BACKUP_PATH);
   let cfg = DEFAULT_CONFIG;
   if (text) {
     try {
@@ -376,7 +386,9 @@ export async function loadConfig(): Promise<DashboardConfig> {
 /** Persist config to disk. Returns true on success. */
 export async function saveConfig(cfg: DashboardConfig): Promise<boolean> {
   try {
-    await DashboardNative.writeFile(CONFIG_PATH, JSON.stringify(cfg, null, 2));
+    const json = JSON.stringify(cfg, null, 2);
+    await DashboardNative.writeFile(CONFIG_PATH, json);
+    DashboardNative.writeFile(BACKUP_PATH, json).catch(() => {});
     applyLogSetting(cfg);
     return true;
   } catch {

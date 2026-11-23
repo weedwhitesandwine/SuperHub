@@ -6,8 +6,8 @@
   "iconPath": "assets/icon.png",
   "desc": "SuperHub: a calm home screen for Supernote. A framed clock, ten pencil-sketch buttons you name and point at any folder, note, app or SuperHub page, and your recent pages at a glance. Opened from the floating home bubble or the toolbar.\n\nBased on SuperDashboard by AgP42 (MIT licence): https://github.com/AgP42/SuperDashboard\n\nNeeds file access, no internet: READ to scan and open your files, WRITE to save settings.",
   "author": "weedwhitesandwine (based on SuperDashboard by AgP42)",
-  "versionName": "2.2.1-hub11",
-  "versionCode": "311",
+  "versionName": "2.2.1-hub12",
+  "versionCode": "312",
   "uses-permissions": [
     "plugin.permission.FILE:READ",
     "plugin.permission.FILE:WRITE"

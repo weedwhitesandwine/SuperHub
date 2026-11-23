@@ -15,6 +15,9 @@ import {cacheDir} from './paths';
 import {setRoute} from './route';
 import {ICONS} from './icons';
 
+/** Where people drop their own button pictures (PNG/JPG). */
+export const USER_ICON_DIR = '/storage/emulated/0/MyStyle/SuperHub/Icons';
+
 const FRAME = require('../assets/hub/frame.png');
 const PFRAME = require('../assets/hub/pframe.png');
 
@@ -107,7 +110,7 @@ export function pressDock(d: DockItem, onBlock: (b: string) => void) {
 
 /** A button's picture: its sketch icon, or the old round glyph when it has none. */
 export function DockPicture({d, size}: {d: DockItem; size: number}) {
-  const src = d.icon ? ICONS[d.icon] : undefined;
+  const src = d.icon ? (d.icon.startsWith('/') ? {uri: 'file://' + d.icon} : ICONS[d.icon]) : undefined;
   if (!src && d.kind === 'none')
     return (
       <View style={{width: size, height: size, alignItems: 'center', justifyContent: 'center'}}>

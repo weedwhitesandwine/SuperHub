@@ -11,7 +11,7 @@ import {DashboardConfig, loadConfig, saveConfig, blockHeightPx, newZone} from '.
 import {leavePlugin} from './src/bubble';
 import {tscale, ZoneView} from './src/zones';
 import {setCornerRadius, ui} from './src/ui';
-import {SettingsScreen} from './src/settings';
+import {HubSettings} from './src/hubsettings';
 import {autoRefreshTitles} from './src/notetoc';
 import {timed} from './src/perf';
 import {blockMatches, Dock, FavouritesPage, HomeClock, RecentStrip, StarredPages} from './src/home';
@@ -34,7 +34,7 @@ function App(): React.JSX.Element {
     const sub = DeviceEventEmitter.addListener('dashboard_route', (r: Route) => setRouteState(r));
     return () => sub.remove();
   }, []);
-  return route === 'dashboard' ? <DashboardScreen /> : <SettingsScreen />;
+  return route === 'dashboard' ? <DashboardScreen /> : <HubSettings />;
 }
 
 /** A fixed-height block whose inner scroll turns on ONLY when its content
